@@ -1,0 +1,140 @@
+import { useState, memo } from 'react';
+import { Input } from '@/components/ui/input';
+import type {
+  GrillaResponse,
+  FilaGrillaDto,
+  CeldaModificadaDto,
+} from '../types/mediciones.types';
+
+// ✅ memo — solo se re-renderiza si sus props cambian
+const CeldaInput = memo(function CeldaInput({
+  valorInicial,
+  placeholder,
+  onCommit,
+}: {
+  valorInicial: number | null;
+  placeholder: string;
+  onCommit: (val: number | null) => void;
+}) {
+  const [local, setLocal] = useState<string>(
+    valorInicial !== null ? String(valorInicial) : '',
+  );
+
+  return (
+    <Input
+      type="number"
+      step="0.01"
+      value={local}
+      onChange={(e) => setLocal(e.target.value)}
+      onBlur={(e) => {
+        const val = e.target.value === '' ? null : Number(e.target.value);
+        onCommit(val);
+      }}
+      className="w-16 h-6 text-xs px-1"
+      placeholder={placeholder}
+    />
+  );
+});
+
+interface Props {
+  grilla: GrillaResponse;
+  celdasModificadas: CeldaModificadaDto[];
+  onCeldaChange: (celda: CeldaModificadaDto) => void;
+}
+
+export function GrillaDesgaste({ grilla, celdasModificadas, onCeldaChange }: Props) {
+  const { anios, filas } = grilla;
+
+  const getValue = (
+    fila: FilaGrillaDto,
+    anio: number,
+    trimestre: number,
+    punto: string,
+  ): number | null => {
+    const mod = celdasModificadas.find(
+      (c) =>
+        c.elementoId === fila.elementoId &&
+        c.anio === anio &&
+        c.trimestre === trimestre &&
+        c.punto === punto,
+    );
+    if (mod) return mod.valor;
+    return (
+      fila.mediciones[anio]?.[trimestre]?.[
+        punto as keyof typeof fila.mediciones[0][0]
+      ] ?? null
+    );
+  };
+
+  return (
+    <div className="overflow-x-auto border rounded-lg">
+      <table className="min-w-full divide-y divide-gray-200 text-sm">
+        <thead className="bg-gray-50">
+          <tr>
+            <th className="px-2 py-1 text-left">Elemento</th>
+            <th className="px-2 py-1 text-left">Prog.</th>
+            <th className="px-2 py-1 text-left">Vía</th>
+            {anios.map((anio) => (
+              <th
+                key={anio}
+                colSpan={4}
+                className="px-2 py-1 text-center border-l"
+              >
+                {anio}
+              </th>
+            ))}
+          </tr>
+          <tr>
+            <th /><th /><th />
+            {anios.map((anio) =>
+              [1, 2, 3, 4].map((trim) => (
+                <th
+                  key={`${anio}-${trim}`}
+                  className="px-1 py-0.5 text-center border-l text-xs font-normal"
+                >
+                  T{trim}
+                </th>
+              )),
+            )}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-200">
+          {filas.map((fila) => (
+            <tr key={fila.elementoId} className="hover:bg-gray-50">
+              <td className="px-2 py-1 font-medium">{fila.codigoElemento}</td>
+              <td className="px-2 py-1">{fila.progresiva}</td>
+              <td className="px-2 py-1">{fila.via}</td>
+              {anios.map((anio) =>
+                [1, 2, 3, 4].map((trimestre) => (
+                  <td
+                    key={`${anio}-${trimestre}`}
+                    className="px-1 py-0.5 border-l"
+                  >
+                    <div className="flex flex-col gap-0.5">
+                      {(['w1', 'w2', 'w3r', 'w3l'] as const).map((punto) => (
+                        <CeldaInput
+                          key={`${fila.elementoId}-${anio}-${trimestre}-${punto}`}
+                          valorInicial={getValue(fila, anio, trimestre, punto)}
+                          placeholder={punto.toUpperCase()}
+                          onCommit={(val) =>
+                            onCeldaChange({
+                              elementoId: fila.elementoId,
+                              anio,
+                              trimestre,
+                              punto: punto.toUpperCase() as CeldaModificadaDto['punto'],
+                              valor: val,
+                            })
+                          }
+                        />
+                      ))}
+                    </div>
+                  </td>
+                )),
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}

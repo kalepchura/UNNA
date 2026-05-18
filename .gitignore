@@ -1,0 +1,78 @@
+# =========================
+# DEPENDENCIAS
+# =========================
+node_modules/
+
+# =========================
+# BUILD / COMPILADOS
+# =========================
+dist/
+build/
+coverage/
+.next/
+out/
+
+# =========================
+# VARIABLES DE ENTORNO
+# NUNCA SUBIR SECRETOS
+# =========================
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+.env*.local
+
+# =========================
+# LOGS
+# =========================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# =========================
+# CACHE / TEMP
+# =========================
+.cache/
+.temp/
+.tmp/
+
+# =========================
+# EDITORES
+# =========================
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.swp
+
+# =========================
+# SISTEMA OPERATIVO
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# TESTS
+# =========================
+.nyc_output/
+
+# =========================
+# RUNTIME
+# =========================
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# =========================
+# REPORTES
+# =========================
+report.*.json
