@@ -1,3 +1,5 @@
+// frontend/src/components/tables/data-table.tsx
+
 import {
   flexRender,
   getCoreRowModel,
@@ -44,6 +46,11 @@ interface DataTableProps<TData> {
   onRowClick?: (row: TData) => void;
   /** Variante de densidad: 'default' (más espaciado) o 'compact' (menos padding). */
   density?: 'default' | 'compact';
+  /**
+   * Si la tabla va dentro de un <DataCard/> que ya provee borde y sombra,
+   * pasa bare=true para que la tabla no dibuje su propio contenedor.
+   */
+  bare?: boolean;
 }
 
 /**
@@ -51,8 +58,9 @@ interface DataTableProps<TData> {
  *
  * Mejoras visuales:
  *  - Overlay de carga semitransparente con spinner (mantiene los datos anteriores visibles).
- *  - Transiciones suaves de opacidad.
- *  - Variante compacta para catálogos y listados densos.
+ *  - Headers con peso visual claro y orden visible.
+ *  - Filas con hover sutil + zebra opcional eliminada para look más limpio.
+ *  - Variante `bare` para componer dentro de <DataCard/>.
  */
 export function DataTable<TData>({
   columns,
@@ -62,6 +70,7 @@ export function DataTable<TData>({
   paginacion,
   onRowClick,
   density = 'default',
+  bare = false,
 }: DataTableProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>([]);
 
@@ -80,28 +89,53 @@ export function DataTable<TData>({
   const showOverlay = loading && data.length > 0;
   const isFirstLoad = loading && data.length === 0;
 
-  const cellPadding = density === 'compact' ? 'px-3 py-1.5 text-xs' : 'px-4 py-2 text-sm';
-  const headerPadding = density === 'compact' ? 'px-3 py-2 text-xs' : 'px-4 py-3 text-sm';
+  const cellPadding =
+    density === 'compact'
+      ? 'px-3 py-2 text-[13px]'
+      : 'px-4 py-3 text-sm';
+  const headerPadding =
+    density === 'compact'
+      ? 'px-3 py-2.5 text-[11px]'
+      : 'px-4 py-3 text-[11.5px]';
 
   return (
-    <div className="space-y-3">
+    <div className={cn(!bare && 'space-y-3')}>
       {/* Tabla */}
-      <div className="relative overflow-x-auto rounded-2xl border border-border/50 bg-background shadow-sm">
+      <div
+        className={cn(
+          'relative overflow-x-auto',
+          !bare && 'rounded-xl border border-border bg-card shadow-sm',
+        )}
+      >
         {showOverlay && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/50 transition-opacity duration-200">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          <div
+            className="
+              absolute inset-0 z-10 flex items-center justify-center
+              bg-background/60 backdrop-blur-[1px] transition-opacity duration-200
+            "
+          >
+            <Loader2 className="h-6 w-6 animate-spin text-foreground" />
           </div>
         )}
 
-        <table className={cn('w-full', showOverlay && 'opacity-60 transition-opacity duration-200')}>
+        <table
+          className={cn(
+            'w-full border-collapse',
+            showOverlay && 'opacity-60 transition-opacity duration-200',
+          )}
+        >
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (
-              <tr key={headerGroup.id} className="border-b border-border/40 bg-muted/20">
+              <tr
+                key={headerGroup.id}
+                className="border-b border-border bg-muted/30"
+              >
                 {headerGroup.headers.map((header) => (
                   <th
                     key={header.id}
                     className={cn(
-                      'text-left font-medium text-muted-foreground whitespace-nowrap',
+                      'text-left font-semibold uppercase tracking-wider',
+                      'text-muted-foreground whitespace-nowrap',
                       headerPadding,
                     )}
                   >
@@ -109,8 +143,9 @@ export function DataTable<TData>({
                       <button
                         type="button"
                         className={cn(
-                          'flex items-center gap-1',
-                          header.column.getCanSort() && 'cursor-pointer select-none',
+                          'flex items-center gap-1.5 transition-colors',
+                          header.column.getCanSort() &&
+                            'cursor-pointer select-none hover:text-foreground',
                         )}
                         onClick={header.column.getToggleSortingHandler()}
                         disabled={!header.column.getCanSort()}
@@ -131,26 +166,39 @@ export function DataTable<TData>({
           </thead>
           <tbody>
             {isFirstLoad ? (
-              <SkeletonRows columns={columns.length} density={density} />
+              <SkeletonRows
+                columns={columns.length}
+                density={density}
+              />
             ) : isEmpty ? (
               <tr>
                 <td colSpan={columns.length} className="p-0">
-                  <EmptyState titulo={mensajeVacio} className="m-4" />
+                  <EmptyState titulo={mensajeVacio} className="m-6" />
                 </td>
               </tr>
             ) : (
-              table.getRowModel().rows.map((row) => (
+              table.getRowModel().rows.map((row, idx) => (
                 <tr
                   key={row.id}
-                  onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                  onClick={
+                    onRowClick ? () => onRowClick(row.original) : undefined
+                  }
                   className={cn(
-                    'border-b border-border/40 hover:bg-muted/20 transition-colors',
+                    'border-b border-border/60 transition-colors',
+                    'hover:bg-muted/40',
+                    idx === table.getRowModel().rows.length - 1 && 'border-b-0',
                     onRowClick && 'cursor-pointer',
                   )}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className={cn('align-middle', cellPadding)}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    <td
+                      key={cell.id}
+                      className={cn('align-middle text-foreground', cellPadding)}
+                    >
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext(),
+                      )}
                     </td>
                   ))}
                 </tr>
@@ -171,20 +219,28 @@ export function DataTable<TData>({
 // ----- Subcomponentes -----
 
 function SortIcon({ dir }: { dir: false | 'asc' | 'desc' }) {
-  if (dir === 'asc') return <ChevronUp className="h-3 w-3" />;
-  if (dir === 'desc') return <ChevronDown className="h-3 w-3" />;
-  return <ChevronsUpDown className="h-3 w-3 opacity-50" />;
+  if (dir === 'asc')
+    return <ChevronUp className="h-3 w-3 text-foreground" />;
+  if (dir === 'desc')
+    return <ChevronDown className="h-3 w-3 text-foreground" />;
+  return <ChevronsUpDown className="h-3 w-3 opacity-40" />;
 }
 
-function SkeletonRows({ columns, density }: { columns: number; density: 'default' | 'compact' }) {
-  const padding = density === 'compact' ? 'px-3 py-1.5' : 'px-4 py-3';
+function SkeletonRows({
+  columns,
+  density,
+}: {
+  columns: number;
+  density: 'default' | 'compact';
+}) {
+  const padding = density === 'compact' ? 'px-3 py-2.5' : 'px-4 py-3.5';
   return (
     <>
-      {Array.from({ length: 5 }).map((_, i) => (
-        <tr key={i} className="border-b">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <tr key={i} className="border-b border-border/60">
           {Array.from({ length: columns }).map((_, j) => (
             <td key={j} className={padding}>
-              <Skeleton className="h-4 w-full bg-gray-200 animate-pulse rounded" />
+              <Skeleton className="h-3.5 w-[80%]" />
             </td>
           ))}
         </tr>
@@ -205,11 +261,23 @@ function PaginacionControls({
   const fin = Math.min(page * limit, total);
 
   return (
-    <div className="flex items-center justify-between flex-wrap gap-3 px-1">
+    <div className="flex flex-wrap items-center justify-between gap-3 px-1">
       <p className="text-sm text-muted-foreground">
-        {total === 0
-          ? 'Sin registros'
-          : `${inicio} - ${fin} de ${total} registros`}
+        {total === 0 ? (
+          'Sin registros'
+        ) : (
+          <>
+            Mostrando{' '}
+            <span className="font-medium text-foreground tabular-nums">
+              {inicio}–{fin}
+            </span>{' '}
+            de{' '}
+            <span className="font-medium text-foreground tabular-nums">
+              {total}
+            </span>{' '}
+            registros
+          </>
+        )}
       </p>
       <div className="flex items-center gap-1">
         <Button
@@ -230,11 +298,13 @@ function PaginacionControls({
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <span className="text-sm px-3">
+        <span className="px-3 text-sm tabular-nums">
           {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin inline" />
+            <Loader2 className="inline h-4 w-4 animate-spin" />
           ) : (
-            `Página ${page} de ${totalPages || 1}`
+            <>
+              Página {page} de {totalPages || 1}
+            </>
           )}
         </span>
         <Button

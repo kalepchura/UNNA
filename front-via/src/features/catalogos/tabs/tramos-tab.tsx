@@ -1,147 +1,217 @@
-// frontend/src/components/catalogos/tabs/tramos-tab.tsx
+// frontend/src/features/catalogos/tabs/tramos-tab.tsx
+//
+// Plantilla CANÓNICA para tabs de Catálogos.
+// Misma estructura para todos los demás tabs (Estaciones, Curvas, etc.):
+//   1. Hook de datos (useApiQuery)
+//   2. Filtros + paginación en frontend (useMemo)
+//   3. <DataCard>  ── envoltura única con borde
+//        <DataToolbar>     ── búsqueda + acciones
+//        <DataTable bare>  ── tabla sin su propio borde (lo provee el card)
+//        <DataPagination>  ── pie con info + controles
+//      </DataCard>
 
 import { useState, useMemo } from 'react';
+import type { ColumnDef } from '@tanstack/react-table';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+
 import { useApiQuery } from '@/hooks/use-api-query';
 import { catalogosApi, type Tramo } from '@/lib/api/catalogos.api';
 import { queryKeys } from '@/lib/query-keys';
-import { DataTable } from '@/components/tables/data-table';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
-import type { ColumnDef } from '@tanstack/react-table';
 import { formatearEntero } from '@/lib/format';
 
+import { DataTable } from '@/components/tables/data-table';
+import {
+  DataCard,
+  DataToolbar,
+  DataPagination,
+} from '@/components/shared/data-card';
+import { SearchInput } from '@/components/shared/search-input';
+import { Button } from '@/components/ui/button';
+
+// ── Columnas ─────────────────────────────────────────────────────────────────
+
 const columnas: ColumnDef<Tramo>[] = [
-  { accessorKey: 'codigo', header: 'Código' },
-  { accessorKey: 'nombre', header: 'Nombre' },
+  {
+    accessorKey: 'codigo',
+    header: 'Código',
+    cell: ({ row }) => (
+      <span
+        className="
+          inline-block rounded-md border border-border bg-muted/50
+          px-1.5 py-0.5 font-mono text-[12px] font-medium text-foreground
+        "
+      >
+        {row.original.codigo}
+      </span>
+    ),
+  },
+  {
+    accessorKey: 'nombre',
+    header: 'Nombre',
+    cell: ({ row }) => (
+      <span className="font-medium text-foreground">
+        {row.original.nombre}
+      </span>
+    ),
+  },
   {
     accessorKey: 'progresivaInicio',
-    header: 'Progresiva Inicio',
-    cell: ({ row }) => `${formatearEntero(row.original.progresivaInicio)} m`,
+    header: () => <span className="block text-right">Prog. Inicio</span>,
+    cell: ({ row }) => (
+      <span className="block text-right tabular-nums text-muted-foreground">
+        {formatearEntero(row.original.progresivaInicio)} m
+      </span>
+    ),
   },
   {
     accessorKey: 'progresivaFin',
-    header: 'Progresiva Fin',
-    cell: ({ row }) => `${formatearEntero(row.original.progresivaFin)} m`,
+    header: () => <span className="block text-right">Prog. Fin</span>,
+    cell: ({ row }) => (
+      <span className="block text-right tabular-nums text-muted-foreground">
+        {formatearEntero(row.original.progresivaFin)} m
+      </span>
+    ),
   },
   {
     id: 'longitud',
-    header: 'Longitud',
-    cell: ({ row }) =>
-      `${formatearEntero(row.original.progresivaFin - row.original.progresivaInicio)} m`,
+    header: () => <span className="block text-right">Longitud</span>,
+    cell: ({ row }) => (
+      <span className="block text-right tabular-nums font-medium text-foreground">
+        {formatearEntero(row.original.progresivaFin - row.original.progresivaInicio)} m
+      </span>
+    ),
   },
-  { accessorKey: 'orden', header: 'Orden' },
+  {
+    accessorKey: 'orden',
+    header: () => <span className="block text-center">Orden</span>,
+    cell: ({ row }) => (
+      <span className="block text-center tabular-nums text-muted-foreground">
+        {row.original.orden}
+      </span>
+    ),
+  },
 ];
 
+// ── Tab ──────────────────────────────────────────────────────────────────────
+
 export function TramosTab() {
-  // Estados
   const [pagina, setPagina] = useState(1);
   const [filtroCodigo, setFiltroCodigo] = useState('');
   const [filtroNombre, setFiltroNombre] = useState('');
   const itemsPorPagina = 20;
 
-  // ✅ UNA SOLA LLAMADA AL BACKEND
+  // 1. Carga (una sola llamada al backend)
   const { data: todosLosTramos, isLoading } = useApiQuery({
     queryKey: queryKeys.catalogos.tramosTabla,
     queryFn: () => catalogosApi.tramos.listarParaTabla({ limit: 1000 }),
   });
 
-  // ✅ Filtros en FRONTEND (instantáneo, no va al backend)
+  // 2. Filtros en cliente
   const tramosFiltrados = useMemo(() => {
     if (!todosLosTramos) return [];
-    
-    return todosLosTramos.filter((tramo) => {
-      const matchCodigo = !filtroCodigo || 
-        tramo.codigo.toLowerCase().includes(filtroCodigo.toLowerCase());
-      const matchNombre = !filtroNombre || 
-        tramo.nombre.toLowerCase().includes(filtroNombre.toLowerCase());
+    return todosLosTramos.filter((t) => {
+      const matchCodigo =
+        !filtroCodigo ||
+        t.codigo.toLowerCase().includes(filtroCodigo.toLowerCase());
+      const matchNombre =
+        !filtroNombre ||
+        t.nombre.toLowerCase().includes(filtroNombre.toLowerCase());
       return matchCodigo && matchNombre;
     });
   }, [todosLosTramos, filtroCodigo, filtroNombre]);
 
-  // ✅ Paginación en FRONTEND (instantáneo, no va al backend)
-  const totalPaginas = Math.ceil(tramosFiltrados.length / itemsPorPagina);
+  // 3. Paginación en cliente
+  const totalPaginas = Math.max(
+    1,
+    Math.ceil(tramosFiltrados.length / itemsPorPagina),
+  );
   const inicio = (pagina - 1) * itemsPorPagina;
-  const tramosPagina = tramosFiltrados.slice(inicio, inicio + itemsPorPagina);
+  const tramosPagina = tramosFiltrados.slice(
+    inicio,
+    inicio + itemsPorPagina,
+  );
 
-  // Resetear página al cambiar filtros
-  const handleFiltroCodigo = (valor: string) => {
-    setFiltroCodigo(valor);
+  // Resetear paginación al filtrar
+  const setCodigoConReset = (v: string) => {
+    setFiltroCodigo(v);
     setPagina(1);
   };
-
-  const handleFiltroNombre = (valor: string) => {
-    setFiltroNombre(valor);
+  const setNombreConReset = (v: string) => {
+    setFiltroNombre(v);
     setPagina(1);
   };
 
   return (
-    <div className="space-y-4">
-      {/* Filtros */}
-      <div className="flex gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Filtrar por código..."
-            value={filtroCodigo}
-            onChange={(e) => handleFiltroCodigo(e.target.value)}
-            className="pl-8"
-          />
-        </div>
-        <div className="relative flex-1">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Filtrar por nombre..."
-            value={filtroNombre}
-            onChange={(e) => handleFiltroNombre(e.target.value)}
-            className="pl-8"
-          />
-        </div>
-      </div>
+    <DataCard>
+      <DataToolbar>
+        <SearchInput
+          value={filtroCodigo}
+          onChange={setCodigoConReset}
+          placeholder="Filtrar por código…"
+        />
+        <SearchInput
+          value={filtroNombre}
+          onChange={setNombreConReset}
+          placeholder="Filtrar por nombre…"
+          minWidth={260}
+        />
+      </DataToolbar>
 
-      {/* Tabla */}
       <DataTable
+        bare
         columns={columnas}
         data={tramosPagina}
         loading={isLoading}
-        mensajeVacio="No hay tramos"
+        mensajeVacio="No hay tramos que coincidan con los filtros."
       />
 
-      {/* Información y paginación */}
       {!isLoading && tramosFiltrados.length > 0 && (
-        <div className="flex justify-between items-center pt-4">
-          <span className="text-sm text-muted-foreground">
-            Mostrando {inicio + 1} - {Math.min(inicio + itemsPorPagina, tramosFiltrados.length)} de {tramosFiltrados.length} tramos
-            {(filtroCodigo || filtroNombre) && " (filtrados)"}
+        <DataPagination>
+          <span className="text-muted-foreground">
+            Mostrando{' '}
+            <span className="font-medium text-foreground tabular-nums">
+              {inicio + 1}–
+              {Math.min(inicio + itemsPorPagina, tramosFiltrados.length)}
+            </span>{' '}
+            de{' '}
+            <span className="font-medium text-foreground tabular-nums">
+              {tramosFiltrados.length}
+            </span>{' '}
+            tramos
+            {(filtroCodigo || filtroNombre) && (
+              <span className="ml-1 text-muted-foreground/70">(filtrados)</span>
+            )}
           </span>
-          
+
           {totalPaginas > 1 && (
-            <div className="flex gap-2">
+            <div className="flex items-center gap-1">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setPagina(pagina - 1)}
+                onClick={() => setPagina((p) => p - 1)}
                 disabled={pagina === 1}
+                className="h-8"
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-3.5 w-3.5" />
                 Anterior
               </Button>
-              <span className="px-2 py-1 text-sm">
+              <span className="px-2 text-sm tabular-nums text-muted-foreground">
                 Página {pagina} de {totalPaginas}
               </span>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setPagina(pagina + 1)}
+                onClick={() => setPagina((p) => p + 1)}
                 disabled={pagina === totalPaginas}
+                className="h-8"
               >
                 Siguiente
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-3.5 w-3.5" />
               </Button>
             </div>
           )}
-        </div>
+        </DataPagination>
       )}
-    </div>
+    </DataCard>
   );
 }
