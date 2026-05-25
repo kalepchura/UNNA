@@ -40,7 +40,6 @@ import { MapaCalorModule } from './modules/mapa-calor/mapa-calor.module';
     //                 hijo, queda disponible globalmente.
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
     }),
 
     // ----------------------------------------------------------

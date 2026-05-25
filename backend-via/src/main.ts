@@ -22,7 +22,7 @@ async function bootstrap() {
   // 2. CORS — permite que el frontend (en otro puerto/dominio) llame al backend
   // En desarrollo dejamos abierto. En producción se restringe a tu dominio.
   app.enableCors({
-    origin: ['http://localhost:5173'], // refleja el origin que viene en la request (cualquier origen)
+    origin: true, // refleja el origin que viene en la request (cualquier origen)
     credentials: true, // permite enviar cookies/headers de auth
   });
 
