@@ -1,6 +1,5 @@
 import {
   Injectable,
-  BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
@@ -20,6 +19,7 @@ import {
 import { GuardarCambiosResponseDto } from '../dto/grilla/guardar-cambios-response.dto';
 
 import { ElementoDesgaste } from '../../catalogos/elementos-desgaste/entities/elemento-desgaste.entity';
+import { EscenarioMTB } from '../entities/escenario-mtb.entity';
 
 import { AuditoriaService } from '../../auditoria/services/auditoria.service';
 import { registrarAuditoria } from '../../auditoria/helpers/auditoria.helper';
@@ -42,8 +42,13 @@ export class MedicionesDesgasteService {
   constructor(
     @InjectDataSource()
     private readonly dataSource: DataSource,
+
     @InjectRepository(ElementoDesgaste)
     private readonly elementosRepo: Repository<ElementoDesgaste>,
+
+    @InjectRepository(EscenarioMTB)
+    private readonly escenariosRepo: Repository<EscenarioMTB>,
+
     private readonly medicionesRepo: MedicionesDesgasteRepository,
     private readonly auditoria: AuditoriaService,
     private readonly kpisService: KpisDesgasteService,
@@ -52,23 +57,43 @@ export class MedicionesDesgasteService {
     private readonly grafico3Service: GraficoG3Service,
   ) {}
 
-  async cargarGrilla(filtros: CargarGrillaDto): Promise<GrillaResponseDto> {
-    const anios = await this.resolverAnios(filtros.anios);
-    const tramoIds = filtros.tramoIds?.length ? filtros.tramoIds : null;
+  async cargarGrilla(
+    filtros: CargarGrillaDto,
+  ): Promise<GrillaResponseDto> {
+    await this.validarEscenarioExiste(filtros.escenarioId);
 
-    const elementos = await this.cargarElementos(tramoIds);
-    if (elementos.length === 0) {
-      return { anios, filas: [], totalElementos: 0 };
-    }
-
-    const mediciones = await this.medicionesRepo.listarPorElementosYAnios(
-      elementos.map((e) => e.id),
-      anios,
+    const anios = await this.resolverAnios(
+      filtros.escenarioId,
+      filtros.anios,
     );
 
+    const tramoIds =
+      filtros.tramoIds?.length ? filtros.tramoIds : null;
+
+    const elementos = await this.cargarElementos(tramoIds);
+
+    if (elementos.length === 0) {
+      return {
+        anios,
+        filas: [],
+        totalElementos: 0,
+      };
+    }
+
+    const mediciones =
+      await this.medicionesRepo.listarPorElementosYAnios(
+        elementos.map((e) => e.id),
+        anios,
+        filtros.escenarioId,
+      );
+
     const mapaMediciones = new Map<string, MedicionDesgaste>();
+
     for (const m of mediciones) {
-      mapaMediciones.set(`${m.elementoId}-${m.anio}-${m.trimestre}`, m);
+      mapaMediciones.set(
+        `${m.elementoId}-${m.anio}-${m.trimestre}`,
+        m,
+      );
     }
 
     const filas: FilaGrillaDto[] = elementos.map((e) =>
@@ -86,8 +111,9 @@ export class MedicionesDesgasteService {
     dto: GuardarCambiosDto,
     user: AuthenticatedUser,
   ): Promise<GuardarCambiosResponseDto> {
-    const { cambios } = dto;
+    const { cambios, escenarioId } = dto;
 
+    await this.validarEscenarioExiste(escenarioId);
     await this.validarElementosExisten(cambios);
 
     const grupos = this.agruparCeldasPorFila(cambios);
@@ -98,19 +124,28 @@ export class MedicionesDesgasteService {
     await this.dataSource.transaction(async (manager) => {
       for (const [, grupo] of grupos) {
         const valoresW = this.celdasAValoresW(grupo.celdas);
-        const { creada } = await this.medicionesRepo.upsertEnTransaccion(
-          manager,
-          grupo.elementoId,
-          grupo.anio,
-          grupo.trimestre,
-          valoresW,
-        );
-        if (creada) filasCreadas++;
-        else filasActualizadas++;
+
+        const { creada } =
+          await this.medicionesRepo.upsertEnTransaccion(
+            manager,
+            grupo.elementoId,
+            escenarioId,
+            grupo.anio,
+            grupo.trimestre,
+            valoresW,
+          );
+
+        if (creada) {
+          filasCreadas++;
+        } else {
+          filasActualizadas++;
+        }
       }
     });
 
-    const filasAfectadas = filasCreadas + filasActualizadas;
+    const filasAfectadas =
+      filasCreadas + filasActualizadas;
+
     const celdasModificadas = cambios.length;
 
     await registrarAuditoria(this.auditoria, {
@@ -121,6 +156,7 @@ export class MedicionesDesgasteService {
       user,
       registrosAfectados: celdasModificadas,
       detalle: {
+        escenarioId,
         filasCreadas,
         filasActualizadas,
         celdasModificadas,
@@ -142,15 +178,41 @@ export class MedicionesDesgasteService {
   // HELPERS PRIVADOS
   // ----------------------------------------------------------
 
-  private async resolverAnios(aniosUsuario?: number[]): Promise<number[]> {
+  private async validarEscenarioExiste(
+    escenarioId: number,
+  ): Promise<void> {
+    const existe = await this.escenariosRepo.findOne({
+      where: { id: escenarioId },
+      select: ['id'],
+    });
+
+    if (!existe) {
+      throw new NotFoundException(
+        `Escenario ${escenarioId} no encontrado`,
+      );
+    }
+  }
+
+  private async resolverAnios(
+    escenarioId: number,
+    aniosUsuario?: number[],
+  ): Promise<number[]> {
     if (aniosUsuario && aniosUsuario.length > 0) {
-      return [...new Set(aniosUsuario)].sort((a, b) => a - b);
+      return [...new Set(aniosUsuario)].sort(
+        (a, b) => a - b,
+      );
     }
 
-    const aniosConDatos = await this.medicionesRepo.obtenerAniosConDatos();
+    const aniosConDatos =
+      await this.medicionesRepo.obtenerAniosConDatos(
+        escenarioId,
+      );
+
     const anioActual = new Date().getFullYear();
+
     const set = new Set<number>(aniosConDatos);
     set.add(anioActual);
+
     return [...set].sort((a, b) => a - b);
   }
 
@@ -163,7 +225,9 @@ export class MedicionesDesgasteService {
       .orderBy('e.progresiva', 'ASC');
 
     if (tramoIds && tramoIds.length > 0) {
-      q.where('e.tramo_id IN (:...ids)', { ids: tramoIds });
+      q.where('e.tramo_id IN (:...ids)', {
+        ids: tramoIds,
+      });
     }
 
     return q.getMany();
@@ -181,6 +245,7 @@ export class MedicionesDesgasteService {
 
       for (const trimestre of [1, 2, 3, 4]) {
         const key = `${elemento.id}-${anio}-${trimestre}`;
+
         const m = mapaMediciones.get(key);
 
         mediciones[anio][trimestre] = {
@@ -205,15 +270,7 @@ export class MedicionesDesgasteService {
 
   private agruparCeldasPorFila(
     cambios: CeldaModificadaDto[],
-  ): Map<
-    string,
-    {
-      elementoId: number;
-      anio: number;
-      trimestre: number;
-      celdas: CeldaModificadaDto[];
-    }
-  > {
+  ) {
     const grupos = new Map<
       string,
       {
@@ -226,6 +283,7 @@ export class MedicionesDesgasteService {
 
     for (const c of cambios) {
       const key = `${c.elementoId}-${c.anio}-${c.trimestre}`;
+
       const existente = grupos.get(key);
 
       if (existente) {
@@ -243,7 +301,9 @@ export class MedicionesDesgasteService {
     return grupos;
   }
 
-  private celdasAValoresW(celdas: CeldaModificadaDto[]) {
+  private celdasAValoresW(
+    celdas: CeldaModificadaDto[],
+  ) {
     const valores: {
       w1?: string | null;
       w2?: string | null;
@@ -252,28 +312,56 @@ export class MedicionesDesgasteService {
     } = {};
 
     for (const c of celdas) {
-      const valorString = c.valor === null ? null : c.valor.toFixed(2);
+      const valorString =
+        c.valor === null
+          ? null
+          : c.valor.toFixed(2);
+
       switch (c.punto) {
-        case PuntoW.W1: valores.w1 = valorString; break;
-        case PuntoW.W2: valores.w2 = valorString; break;
-        case PuntoW.W3R: valores.w3r = valorString; break;
-        case PuntoW.W3L: valores.w3l = valorString; break;
+        case PuntoW.W1:
+          valores.w1 = valorString;
+          break;
+
+        case PuntoW.W2:
+          valores.w2 = valorString;
+          break;
+
+        case PuntoW.W3R:
+          valores.w3r = valorString;
+          break;
+
+        case PuntoW.W3L:
+          valores.w3l = valorString;
+          break;
       }
     }
 
     return valores;
   }
 
-  private async validarElementosExisten(cambios: CeldaModificadaDto[]): Promise<void> {
-    const idsUnicos = [...new Set(cambios.map((c) => c.elementoId))];
+  private async validarElementosExisten(
+    cambios: CeldaModificadaDto[],
+  ): Promise<void> {
+    const idsUnicos = [
+      ...new Set(cambios.map((c) => c.elementoId)),
+    ];
+
     const elementos = await this.elementosRepo.find({
-      where: { id: In(idsUnicos) },
+      where: {
+        id: In(idsUnicos),
+      },
       select: ['id'],
     });
 
     if (elementos.length !== idsUnicos.length) {
-      const encontrados = new Set(elementos.map((e) => e.id));
-      const faltantes = idsUnicos.filter((id) => !encontrados.has(id));
+      const encontrados = new Set(
+        elementos.map((e) => e.id),
+      );
+
+      const faltantes = idsUnicos.filter(
+        (id) => !encontrados.has(id),
+      );
+
       throw new NotFoundException(
         `Elementos no encontrados: ${faltantes.join(', ')}`,
       );

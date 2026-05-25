@@ -1,10 +1,18 @@
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { MultiSelect } from '@/components/ui/multi-select';
+
+import {
+  FiltersToolbar,
+  FiltersGrid,
+  FilterField,
+} from '@/components/shared/filters-toolbar';
+
 import { SelectorAnio } from '@/features/fallas/components/filtros-comunes/selector-anio';
 import { useTramosOptions } from '@/hooks/use-tramos-options';
+import { useEscenariosOptions } from '@/hooks/use-escenarios-options';
+import { Combobox } from '@/components/forms/combobox';
+
 import type { CargarGrillaFiltros } from '../types/mediciones.types';
 
 interface Props {
@@ -25,15 +33,51 @@ export function FiltrosMediciones({
   isLoading,
 }: Props) {
   const { options: tramosOptions } = useTramosOptions();
+  const { options: escenariosOptions, isLoading: loadingEscenarios } =
+    useEscenariosOptions();
+
+  const activeCount = countActive(filtros, busqueda);
+
+  const handleClear = () => {
+    onChange({});
+    onBusquedaChange('');
+  };
 
   return (
-    <Card>
-      <CardContent className="pt-6 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Años */}
-          <div>
-            <Label className="text-sm font-medium">Años (opcional)</Label>
-            <div className="flex gap-2 mt-1">
+    <FiltersToolbar
+      description="Selecciona escenario, tramo y rango de años, y busca un elemento específico."
+      activeCount={activeCount}
+      onClear={activeCount > 0 ? handleClear : undefined}
+      primaryAction={
+        <Button
+          onClick={onAplicar}
+          disabled={isLoading || !filtros.escenarioId}
+          size="sm"
+        >
+          {isLoading ? 'Cargando…' : 'Aplicar'}
+        </Button>
+      }
+    >
+      <FiltersGrid columns={4}>
+        {/* ESCENARIO */}
+        <FilterField label="Escenario *">
+          <Combobox
+            options={escenariosOptions}
+            value={filtros.escenarioId ? String(filtros.escenarioId) : ''}
+            onChange={(v) =>
+              onChange({ ...filtros, escenarioId: v ? Number(v) : undefined })
+            }
+            placeholder={
+              loadingEscenarios ? 'Cargando…' : 'Selecciona escenario'
+            }
+            disabled={loadingEscenarios}
+          />
+        </FilterField>
+
+        {/* AÑOS */}
+        <FilterField label="Años (opcional)">
+          <div className="flex gap-2 items-center flex-wrap sm:flex-nowrap">
+            <div className="w-[110px]">
               <SelectorAnio
                 value={filtros.anios?.[0]}
                 onChange={(v) =>
@@ -44,6 +88,8 @@ export function FiltrosMediciones({
                 }
                 placeholder="Desde"
               />
+            </div>
+            <div className="w-[110px]">
               <SelectorAnio
                 value={filtros.anios?.[1]}
                 onChange={(v) => {
@@ -55,42 +101,40 @@ export function FiltrosMediciones({
               />
             </div>
           </div>
+        </FilterField>
 
-          {/* Tramos */}
-          <div>
-            <Label className="text-sm font-medium">Tramos</Label>
-            <div className="mt-1">
-              <MultiSelect
-                options={tramosOptions}
-                selected={(filtros.tramoIds ?? []).map(String)}
-                onChange={(values) =>
-                  onChange({ ...filtros, tramoIds: values.map(Number) })
-                }
-                placeholder="Todos los tramos"
-                showAllOption
-                allOptionLabel="Todos los tramos"
-              />
-            </div>
-          </div>
+        {/* TRAMOS */}
+        <FilterField label="Tramos">
+          <MultiSelect
+            options={tramosOptions}
+            selected={(filtros.tramoIds ?? []).map(String)}
+            onChange={(values) =>
+              onChange({ ...filtros, tramoIds: values.map(Number) })
+            }
+            placeholder="Todos los tramos"
+            showAllOption
+            allOptionLabel="Todos los tramos"
+          />
+        </FilterField>
 
-          {/* ✅ Buscador por elemento, progresiva o vía */}
-          <div>
-            <Label className="text-sm font-medium">Buscar elemento</Label>
-            <Input
-              className="mt-1"
-              placeholder="Código, progresiva o vía..."
-              value={busqueda}
-              onChange={(e) => onBusquedaChange(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-end">
-          <Button onClick={onAplicar} disabled={isLoading}>
-            Aplicar
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+        {/* BÚSQUEDA */}
+        <FilterField label="Buscar elemento">
+          <Input
+            placeholder="Código, progresiva o vía…"
+            value={busqueda}
+            onChange={(e) => onBusquedaChange(e.target.value)}
+          />
+        </FilterField>
+      </FiltersGrid>
+    </FiltersToolbar>
   );
+}
+
+function countActive(f: CargarGrillaFiltros, busqueda: string): number {
+  let n = 0;
+  if (f.escenarioId) n++;
+  if (f.anios?.length) n++;
+  if (f.tramoIds?.length) n++;
+  if (busqueda.trim()) n++;
+  return n;
 }

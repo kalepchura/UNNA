@@ -57,7 +57,7 @@ async function bootstrap() {
 
   // 6. Arrancar
   await app.listen(port);
-  console.log(`🚀 Backend corriendo en: http://localhost:${port}/api/v1`);
+  console.log(`🚀 API iniciada correctamente`);
 }
 
 bootstrap();

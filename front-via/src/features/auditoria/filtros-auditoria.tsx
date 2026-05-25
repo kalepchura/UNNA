@@ -1,6 +1,3 @@
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -8,6 +5,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import {
+  FiltersToolbar,
+  FiltersGrid,
+  FilterField,
+  DateInput,
+} from '@/components/shared/filters-toolbar';
 import type { FiltrarAuditoriaFiltros } from './types/auditoria.types';
 
 const SIN_FILTRO = '__all__';
@@ -19,87 +23,112 @@ interface Props {
   isLoading?: boolean;
 }
 
-export function FiltrosAuditoria({ filtros, onChange, onBuscar, isLoading }: Props) {
+export function FiltrosAuditoria({
+  filtros,
+  onChange,
+  onBuscar,
+  isLoading,
+}: Props) {
+  const activeCount = countActive(filtros);
+
+  const handleClear = () => {
+    onChange({ page: 1, limit: filtros.limit ?? 50 });
+  };
+
   return (
-    <Card>
-      <CardContent className="pt-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <Label className="text-sm font-medium">Módulo</Label>
-            <Select
-              value={filtros.modulo ?? SIN_FILTRO}
-              onValueChange={(value) =>
-                onChange({ ...filtros, modulo: value === SIN_FILTRO ? undefined : value })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Todos" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={SIN_FILTRO}>Todos</SelectItem>
-                <SelectItem value="FALLAS">Fallas</SelectItem>
-                <SelectItem value="TEMPERATURA">Temperatura</SelectItem>
-                <SelectItem value="DESGASTE">Desgaste</SelectItem>
-                <SelectItem value="AUDITORIA">Auditoría</SelectItem>
-                <SelectItem value="USUARIOS">Usuarios</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+    <FiltersToolbar
+      description="Filtra el historial de operaciones por módulo, tipo y rango de fechas."
+      activeCount={activeCount}
+      onClear={activeCount > 0 ? handleClear : undefined}
+      primaryAction={
+        <Button onClick={onBuscar} disabled={isLoading} size="sm">
+          {isLoading ? 'Cargando…' : 'Buscar'}
+        </Button>
+      }
+    >
+      <FiltersGrid columns={4}>
+        <FilterField label="Módulo">
+          <Select
+            value={filtros.modulo ?? SIN_FILTRO}
+            onValueChange={(v) =>
+              onChange({
+                ...filtros,
+                modulo: v === SIN_FILTRO ? undefined : v,
+              })
+            }
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={SIN_FILTRO}>Todos</SelectItem>
+              <SelectItem value="FALLAS">Fallas</SelectItem>
+              <SelectItem value="TEMPERATURA">Temperatura</SelectItem>
+              <SelectItem value="DESGASTE">Desgaste</SelectItem>
+              <SelectItem value="AUDITORIA">Auditoría</SelectItem>
+              <SelectItem value="USUARIOS">Usuarios</SelectItem>
+            </SelectContent>
+          </Select>
+        </FilterField>
 
-          <div>
-            <Label className="text-sm font-medium">Operación</Label>
-            <Select
-              value={filtros.operacion ?? SIN_FILTRO}
-              onValueChange={(value) =>
-                onChange({ ...filtros, operacion: value === SIN_FILTRO ? undefined : value })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Todas" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={SIN_FILTRO}>Todas</SelectItem>
-                <SelectItem value="CREATE">Crear</SelectItem>
-                <SelectItem value="UPDATE">Actualizar</SelectItem>
-                <SelectItem value="DELETE">Eliminar</SelectItem>
-                <SelectItem value="RESTORE">Restaurar</SelectItem>
-                <SelectItem value="IMPORT">Importar</SelectItem>
-                <SelectItem value="BULK_LOAD">Carga masiva</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        <FilterField label="Operación">
+          <Select
+            value={filtros.operacion ?? SIN_FILTRO}
+            onValueChange={(v) =>
+              onChange({
+                ...filtros,
+                operacion: v === SIN_FILTRO ? undefined : v,
+              })
+            }
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Todas" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={SIN_FILTRO}>Todas</SelectItem>
+              <SelectItem value="CREATE">Crear</SelectItem>
+              <SelectItem value="UPDATE">Actualizar</SelectItem>
+              <SelectItem value="DELETE">Eliminar</SelectItem>
+              <SelectItem value="RESTORE">Restaurar</SelectItem>
+              <SelectItem value="IMPORT">Importar</SelectItem>
+              <SelectItem value="BULK_LOAD">Carga masiva</SelectItem>
+            </SelectContent>
+          </Select>
+        </FilterField>
 
-          <div>
-            <Label className="text-sm font-medium">Desde</Label>
-            <input
-              type="date"
-              value={filtros.fechaDesde ?? ''}
-              onChange={(e) =>
-                onChange({ ...filtros, fechaDesde: e.target.value || undefined })
-              }
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-            />
-          </div>
+        <FilterField label="Desde">
+          <DateInput
+            value={filtros.fechaDesde ?? ''}
+            onChange={(e) =>
+              onChange({
+                ...filtros,
+                fechaDesde: e.target.value || undefined,
+              })
+            }
+          />
+        </FilterField>
 
-          <div>
-            <Label className="text-sm font-medium">Hasta</Label>
-            <input
-              type="date"
-              value={filtros.fechaHasta ?? ''}
-              onChange={(e) =>
-                onChange({ ...filtros, fechaHasta: e.target.value || undefined })
-              }
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-            />
-          </div>
-        </div>
-
-        <div className="mt-4 flex justify-end">
-          <Button onClick={onBuscar} disabled={isLoading}>
-            {isLoading ? 'Cargando...' : 'Buscar'}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+        <FilterField label="Hasta">
+          <DateInput
+            value={filtros.fechaHasta ?? ''}
+            onChange={(e) =>
+              onChange({
+                ...filtros,
+                fechaHasta: e.target.value || undefined,
+              })
+            }
+          />
+        </FilterField>
+      </FiltersGrid>
+    </FiltersToolbar>
   );
+}
+
+function countActive(f: FiltrarAuditoriaFiltros): number {
+  let n = 0;
+  if (f.modulo) n++;
+  if (f.operacion) n++;
+  if (f.fechaDesde) n++;
+  if (f.fechaHasta) n++;
+  return n;
 }

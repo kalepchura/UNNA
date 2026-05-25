@@ -1,4 +1,5 @@
 import { useState } from 'react';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,11 +11,15 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetBody,
+  SheetFooter,
+  SheetTitle,
+  SheetDescription,
+} from '@/components/ui/sheet';
+
 import { useApiMutation } from '@/hooks/use-api-mutation';
 import { usuariosApi } from '@/lib/api/usuarios.api';
 import type { Usuario } from './types/usuarios.types';
@@ -33,14 +38,12 @@ export function FormUsuario({ usuario, onClose, onSuccess }: Props) {
     usuario?.rol ?? 'USUARIO',
   );
 
-  // La mutación de creación no necesita argumentos (los datos vienen del estado del form)
   const crearMut = useApiMutation({
     mutationFn: (_params?: unknown) =>
       usuariosApi.crear({ nombre, correo, password, rol }),
     onSuccess,
   });
 
-  // La mutación de actualización tampoco necesita argumentos
   const actualizarMut = useApiMutation({
     mutationFn: (_params?: unknown) =>
       usuariosApi.actualizar(usuario!.id, { nombre, rol }),
@@ -54,63 +57,92 @@ export function FormUsuario({ usuario, onClose, onSuccess }: Props) {
   };
 
   const isPending = crearMut.isPending || actualizarMut.isPending;
+  const formId = 'form-usuario';
 
   return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{usuario ? 'Editar usuario' : 'Nuevo usuario'}</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label>Nombre</Label>
-            <Input value={nombre} onChange={(e) => setNombre(e.target.value)} required />
-          </div>
-          {!usuario && (
-            <>
-              <div>
-                <Label>Correo</Label>
-                <Input
-                  type="email"
-                  value={correo}
-                  onChange={(e) => setCorreo(e.target.value)}
-                  required
-                />
-              </div>
-              <div>
-                <Label>Contraseña</Label>
-                <Input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={8}
-                />
-              </div>
-            </>
-          )}
-          <div>
-            <Label>Rol</Label>
-            <Select value={rol} onValueChange={(v) => setRol(v as any)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="USUARIO">Usuario</SelectItem>
-                <SelectItem value="ADMINISTRADOR">Administrador</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={isPending}>
-              {isPending ? 'Guardando...' : 'Guardar'}
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <Sheet open onOpenChange={(open) => !open && onClose()}>
+      <SheetContent side="right" size="md">
+        <SheetHeader>
+          <SheetTitle>
+            {usuario ? 'Editar usuario' : 'Nuevo usuario'}
+          </SheetTitle>
+          <SheetDescription>
+            {usuario
+              ? 'Modifique los datos del usuario.'
+              : 'Complete los datos para registrar un nuevo usuario del sistema.'}
+          </SheetDescription>
+        </SheetHeader>
+
+        <SheetBody>
+          <form id={formId} onSubmit={handleSubmit} className="space-y-5">
+            <div className="space-y-1.5">
+              <Label htmlFor="usr-nombre">Nombre</Label>
+              <Input
+                id="usr-nombre"
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                required
+                placeholder="Nombre completo"
+              />
+            </div>
+
+            {!usuario && (
+              <>
+                <div className="space-y-1.5">
+                  <Label htmlFor="usr-correo">Correo</Label>
+                  <Input
+                    id="usr-correo"
+                    type="email"
+                    value={correo}
+                    onChange={(e) => setCorreo(e.target.value)}
+                    required
+                    placeholder="usuario@unna.pe"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="usr-password">Contraseña</Label>
+                  <Input
+                    id="usr-password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    minLength={8}
+                    placeholder="Mínimo 8 caracteres"
+                  />
+                </div>
+              </>
+            )}
+
+            <div className="space-y-1.5">
+              <Label>Rol</Label>
+              <Select value={rol} onValueChange={(v) => setRol(v as any)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="USUARIO">Usuario</SelectItem>
+                  <SelectItem value="ADMINISTRADOR">Administrador</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {rol === 'ADMINISTRADOR'
+                  ? 'Acceso completo, incluyendo auditoría y gestión de usuarios.'
+                  : 'Acceso operativo: catálogos, fallas, desgaste y temperatura.'}
+              </p>
+            </div>
+          </form>
+        </SheetBody>
+
+        <SheetFooter>
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button type="submit" form={formId} disabled={isPending}>
+            {isPending ? 'Guardando…' : 'Guardar'}
+          </Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }

@@ -15,11 +15,12 @@
 // CAPA TEMPERATURA (sección 8 - Capa Temperatura)
 // ------------------------------------------------------------
 export const MAPA_TEMPERATURA = {
-  /** Verde: 0 a 35 °C. */
-  UMBRAL_VERDE_MAX: 35,
-  /** Amarillo: 36 a 45 °C. */
-  UMBRAL_AMARILLO_MAX: 45,
-  // Rojo: > 45 °C (implícito)
+  /** Verde: 0 a 44 °C. */
+  UMBRAL_VERDE_MAX: 44,
+  /** Amarillo: 45 a 49 °C. */
+  UMBRAL_AMARILLO_MAX: 49,
+  // Rojo: > 49 °C 
+  
 } as const;
 
 // ------------------------------------------------------------

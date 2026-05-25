@@ -1,5 +1,6 @@
-import { Skeleton } from '@/components/ui/skeleton';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { AlertOctagon, Activity, ClipboardX } from 'lucide-react';
+
+import { StatCard, type StatTone } from '@/components/shared/stat-card';
 import { KpisFallasResponse } from '../types/kpis-fallas.types';
 
 interface Props {
@@ -7,87 +8,77 @@ interface Props {
   isLoading: boolean;
 }
 
+/**
+ * KPIs del módulo de Fallas — usa <StatCard/> canónico.
+ */
 export function KpisFallas({ data, isLoading }: Props) {
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[1, 2, 3].map((i) => (
-          <Card key={i}>
-            <CardHeader className="pb-2">
-              <Skeleton className="h-5 w-32" />
-            </CardHeader>
-            <CardContent>
-              <Skeleton className="h-8 w-20" />
-            </CardContent>
-          </Card>
-        ))}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <StatCard label="" value="" loading />
+        <StatCard label="" value="" loading />
+        <StatCard label="" value="" loading />
       </div>
     );
   }
 
   if (!data) return null;
 
-  const getColorClass = (color: string) => {
-    switch (color) {
-      case 'VERDE': return 'text-green-600';
-      case 'AMARILLO': return 'text-yellow-600';
-      case 'ROJO': return 'text-red-600';
-      default: return 'text-gray-600';
-    }
-  };
-
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      {/* KPI 1 - Total mes actual */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            Fallas en {data.totalMesActual.periodo}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className={`text-3xl font-bold ${getColorClass(data.totalMesActual.color)}`}>
-            {data.totalMesActual.total}
-          </div>
-        </CardContent>
-      </Card>
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {/* KPI 1 — Fallas del mes */}
+      <StatCard
+        label={`Fallas en ${data.totalMesActual.periodo}`}
+        value={data.totalMesActual.total}
+        unit="fallas"
+        icon={AlertOctagon}
+        tone={mapColorToTone(data.totalMesActual.color)}
+      />
 
-      {/* KPI 2 - Tramo con más fallas */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            Tramo con más fallas
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-lg font-semibold truncate">
-            {data.tramoTop.tramoCodigo || 'Sin datos'}
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            {data.tramoTop.cantidadFallas} fallas
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {data.tramoTop.rango}
-          </p>
-        </CardContent>
-      </Card>
+      {/* KPI 2 — Tramo top */}
+      <StatCard
+        label="Tramo con más fallas"
+        value={
+          data.tramoTop.tramoCodigo ? (
+            <span className="font-mono text-[20px]">
+              {data.tramoTop.tramoCodigo}
+            </span>
+          ) : (
+            'Sin datos'
+          )
+        }
+        helper={
+          data.tramoTop.tramoCodigo
+            ? `${data.tramoTop.cantidadFallas} fallas · ${data.tramoTop.rango}`
+            : undefined
+        }
+        icon={Activity}
+        tone="warning"
+      />
 
-      {/* KPI 3 - Soldaduras sin acción */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            Soldaduras sin acción
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className={`text-3xl font-bold ${data.soldadurasSinAccion.critico ? 'text-red-600' : ''}`}>
-            {data.soldadurasSinAccion.cantidad}
-          </div>
-          {data.soldadurasSinAccion.critico && (
-            <p className="text-xs text-red-500 mt-1">Requiere atención</p>
-          )}
-        </CardContent>
-      </Card>
+      {/* KPI 3 — Soldaduras sin acción */}
+      <StatCard
+        label="Soldaduras sin acción"
+        value={data.soldadurasSinAccion.cantidad}
+        unit="elem."
+        helper={
+          data.soldadurasSinAccion.critico
+            ? 'Requiere atención inmediata'
+            : undefined
+        }
+        icon={ClipboardX}
+        tone={data.soldadurasSinAccion.critico ? 'destructive' : 'neutral'}
+      />
     </div>
   );
+}
+
+function mapColorToTone(color: string): StatTone {
+  switch (color) {
+    case 'VERDE':    return 'success';
+    case 'AMARILLO': return 'warning';
+    case 'ROJO':     return 'destructive';
+    case 'GRIS':     return 'neutral';
+    default:         return 'neutral';
+  }
 }

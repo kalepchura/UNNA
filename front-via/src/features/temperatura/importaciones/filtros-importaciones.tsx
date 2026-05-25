@@ -1,6 +1,3 @@
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
 import { MultiSelect } from '@/components/ui/multi-select';
 import {
   Select,
@@ -9,6 +6,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import {
+  FiltersToolbar,
+  FiltersGrid,
+  FilterField,
+  DateInput,
+} from '@/components/shared/filters-toolbar';
 import { useTramosOptions } from '@/hooks/use-tramos-options';
 import type { FiltrosImportaciones as FiltrosType } from '../types/importacion-types';
 
@@ -21,97 +25,102 @@ interface Props {
 
 const TIPO_ARCHIVO_TODOS = 'todos';
 
-export function FiltrosImportaciones({ filtros, onChange, onBuscar, isLoading }: Props) {
+export function FiltrosImportaciones({
+  filtros,
+  onChange,
+  onBuscar,
+  isLoading,
+}: Props) {
   const { options: tramosOptions } = useTramosOptions();
+  const activeCount = countActive(filtros);
+
+  const handleClear = () => {
+    onChange({ page: 1, limit: filtros.limit ?? 20 });
+  };
 
   return (
-    <Card>
-      <CardContent className="pt-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <FiltersToolbar
+      description="Filtra las importaciones por tramo, tipo de archivo o rango de subida."
+      activeCount={activeCount}
+      onClear={activeCount > 0 ? handleClear : undefined}
+      primaryAction={
+        <Button onClick={onBuscar} disabled={isLoading} size="sm">
+          {isLoading ? 'Cargando…' : 'Buscar'}
+        </Button>
+      }
+    >
+      <FiltersGrid columns={4}>
+        <FilterField label="Tramos">
+          <MultiSelect
+            options={tramosOptions}
+            selected={(filtros.tramoIds ?? []).map(String)}
+            onChange={(values) =>
+              onChange({ ...filtros, tramoIds: values.map(Number) })
+            }
+            placeholder="Todos"
+            showAllOption
+            allOptionLabel="Todos los tramos"
+          />
+        </FilterField>
 
-          {/* Tramos */}
-          <div>
-            <Label className="text-sm font-medium">Tramos</Label>
-            <MultiSelect
-              options={tramosOptions}
-              selected={(filtros.tramoIds ?? []).map(String)}
-              onChange={(values) =>
-                onChange({ ...filtros, tramoIds: values.map(Number) })
-              }
-              placeholder="Todos"
-              showAllOption
-              allOptionLabel="Todos los tramos"
-            />
-          </div>
+        <FilterField label="Tipo de archivo">
+          <Select
+            value={filtros.tipoArchivo ?? TIPO_ARCHIVO_TODOS}
+            onValueChange={(value) =>
+              onChange({
+                ...filtros,
+                tipoArchivo:
+                  value === TIPO_ARCHIVO_TODOS
+                    ? undefined
+                    : (value as 'CSV' | 'EXCEL' | 'XML'),
+              })
+            }
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TIPO_ARCHIVO_TODOS}>Todos</SelectItem>
+              <SelectItem value="CSV">CSV</SelectItem>
+              <SelectItem value="EXCEL">Excel</SelectItem>
+              <SelectItem value="XML">XML</SelectItem>
+            </SelectContent>
+          </Select>
+        </FilterField>
 
-          {/* Tipo de archivo */}
-          <div>
-            <Label className="text-sm font-medium">Tipo de archivo</Label>
-            <Select
-              // ✅ Nunca string vacío — usamos centinela 'todos'
-              value={filtros.tipoArchivo ?? TIPO_ARCHIVO_TODOS}
-              onValueChange={(value) =>
-                onChange({
-                  ...filtros,
-                  tipoArchivo:
-                    value === TIPO_ARCHIVO_TODOS
-                      ? undefined
-                      : (value as 'CSV' | 'EXCEL' | 'XML'),
-                })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Todos" />
-              </SelectTrigger>
-              <SelectContent>
-                {/* ✅ value nunca vacío */}
-                <SelectItem value={TIPO_ARCHIVO_TODOS}>Todos</SelectItem>
-                <SelectItem value="CSV">CSV</SelectItem>
-                <SelectItem value="EXCEL">Excel</SelectItem>
-                <SelectItem value="XML">XML</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        <FilterField label="Subido desde">
+          <DateInput
+            value={filtros.fechaSubidaDesde ?? ''}
+            onChange={(e) =>
+              onChange({
+                ...filtros,
+                fechaSubidaDesde: e.target.value || undefined,
+              })
+            }
+          />
+        </FilterField>
 
-          {/* Fecha subida desde */}
-          <div>
-            <Label className="text-sm font-medium">Subido desde</Label>
-            <input
-              type="date"
-              value={filtros.fechaSubidaDesde ?? ''}
-              onChange={(e) =>
-                onChange({
-                  ...filtros,
-                  fechaSubidaDesde: e.target.value || undefined,
-                })
-              }
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-            />
-          </div>
-
-          {/* Fecha subida hasta */}
-          <div>
-            <Label className="text-sm font-medium">Subido hasta</Label>
-            <input
-              type="date"
-              value={filtros.fechaSubidaHasta ?? ''}
-              onChange={(e) =>
-                onChange({
-                  ...filtros,
-                  fechaSubidaHasta: e.target.value || undefined,
-                })
-              }
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-            />
-          </div>
-        </div>
-
-        <div className="mt-4 flex justify-end">
-          <Button onClick={onBuscar} disabled={isLoading}>
-            {isLoading ? 'Cargando...' : 'Buscar'}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+        <FilterField label="Subido hasta">
+          <DateInput
+            value={filtros.fechaSubidaHasta ?? ''}
+            onChange={(e) =>
+              onChange({
+                ...filtros,
+                fechaSubidaHasta: e.target.value || undefined,
+              })
+            }
+          />
+        </FilterField>
+      </FiltersGrid>
+    </FiltersToolbar>
   );
+}
+
+function countActive(f: FiltrosType): number {
+  let n = 0;
+  if (f.tramoIds?.length) n++;
+  if (f.tipoArchivo) n++;
+  if (f.fechaSubidaDesde) n++;
+  if (f.fechaSubidaHasta) n++;
+  return n;
 }

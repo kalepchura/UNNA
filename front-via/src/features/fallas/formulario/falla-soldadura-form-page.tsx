@@ -134,11 +134,28 @@ function SeccionImagenes({ fallaId }: { fallaId: number }) {
   );
 }
 
-export function FallaSoldaduraFormPage() {
-  const { id } = useParams<{ id: string }>();
+interface FallaSoldaduraFormPageProps {
+  /** Si se provee, el formulario corre en "modo embebido" (sin ruta). */
+  idOverride?: number | null;
+  /** Callback cuando se cierra (X / Cancelar). */
+  onClose?: () => void;
+  /** Callback cuando se completa con éxito. */
+  onSuccess?: (id: number) => void;
+}
+
+export function FallaSoldaduraFormPage(props: FallaSoldaduraFormPageProps = {}) {
+  const { idOverride, onClose, onSuccess } = props;
+  const isEmbedded = idOverride !== undefined || !!onClose || !!onSuccess;
+
+  const { id: idParam } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  const fallaId = id ? Number(id) : null;
+  const fallaId =
+    idOverride !== undefined
+      ? idOverride
+      : idParam
+        ? Number(idParam)
+        : null;
   const esEdicion = fallaId != null && fallaId > 0;
 
   const { data: fallaActual, isLoading: cargandoFalla } = useFallaSoldadura(
@@ -220,7 +237,11 @@ export function FallaSoldaduraFormPage() {
         id: fallaId!,
         dto,
       });
-      navigate(`/fallas/soldadura/${actualizada.id}`);
+      if (onSuccess) {
+        onSuccess(actualizada.id);
+      } else {
+        navigate(`/fallas/soldadura/${actualizada.id}`);
+      }
     } else {
       const dto: CrearFallaSoldaduraDto = {
         cambiaviaId: data.cambiaviaId,
@@ -285,25 +306,33 @@ export function FallaSoldaduraFormPage() {
     return (
       <div className="p-4 space-y-2">
         <p>Falla no encontrada.</p>
-        <Button asChild variant="outline">
-          <Link to="/fallas/soldadura">Volver al listado</Link>
-        </Button>
+        {onClose ? (
+          <Button variant="outline" onClick={onClose}>
+            Cerrar
+          </Button>
+        ) : (
+          <Button asChild variant="outline">
+            <Link to="/fallas/soldadura">Volver al listado</Link>
+          </Button>
+        )}
       </div>
     );
   }
 
   return (
-    <div className="pagina-form-soldadura p-4 space-y-4">
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">
-          {esEdicion
-            ? `Editar Falla Soldadura #${fallaId}`
-            : 'Nueva Falla de Soldadura'}
-        </h1>
-        <Button asChild variant="outline">
-          <Link to="/fallas/soldadura">Cancelar</Link>
-        </Button>
-      </header>
+    <div className={isEmbedded ? 'space-y-4' : 'pagina-form-soldadura p-4 space-y-4'}>
+      {!isEmbedded && (
+        <header className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">
+            {esEdicion
+              ? `Editar Falla Soldadura #${fallaId}`
+              : 'Nueva Falla de Soldadura'}
+          </h1>
+          <Button asChild variant="outline">
+            <Link to="/fallas/soldadura">Cancelar</Link>
+          </Button>
+        </header>
+      )}
 
       {fallaIdCreada !== null && !esEdicion && (
         <BannerCreado
@@ -585,15 +614,36 @@ export function FallaSoldaduraFormPage() {
 
         {mostrarBotones && (
           <div className="flex justify-end gap-2">
-            <Button asChild variant="outline" type="button">
-              <Link to="/fallas/soldadura">Cancelar</Link>
-            </Button>
+            {onClose ? (
+              <Button variant="outline" type="button" onClick={onClose}>
+                Cancelar
+              </Button>
+            ) : (
+              <Button asChild variant="outline" type="button">
+                <Link to="/fallas/soldadura">Cancelar</Link>
+              </Button>
+            )}
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting
                 ? 'Guardando...'
                 : esEdicion
                   ? 'Guardar cambios'
                   : 'Crear falla'}
+            </Button>
+          </div>
+        )}
+
+        {/* En modo embebido, después de crear y subir imágenes, botón "Listo" */}
+        {isEmbedded && !esEdicion && fallaIdCreada !== null && (
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              onClick={() => {
+                if (onSuccess) onSuccess(fallaIdCreada);
+                if (onClose) onClose();
+              }}
+            >
+              Listo
             </Button>
           </div>
         )}

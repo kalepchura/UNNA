@@ -8,6 +8,8 @@ import {
 import { StorageService, ArchivoMulter } from '../../../common/services/storage.service';
 import { STORAGE_BUCKETS } from '../../../common/constants/storage-buckets';
 import { FallasRielRepository, FiltrosResueltos } from '../repositories/fallas-riel.repository';
+import { FallasRielAccionRepository } from '../repositories/fallas-riel-accion.repository';
+
 import { CrearFallaRielDto } from '../dto/falla-riel/crear-falla-riel.dto';
 import { ActualizarFallaRielDto } from '../dto/falla-riel/actualizar-falla-riel.dto';
 import { FiltrarFallasRielDto } from '../dto/falla-riel/filtrar-fallas-riel.dto';
@@ -21,6 +23,7 @@ import {
   ModuloAuditoria,
   OperacionAuditoria,
   TipoArchivoFalla,
+  EstadoFalla,
 } from '../../../common/enums';
 import { AuthenticatedUser } from '../../../common/interfaces/authenticated-user.interface';
 
@@ -38,13 +41,17 @@ import { Grafico3FallasService } from './grafico-3-fallas.service';
  *
  * Responsabilidades:
  *  - CRUD con cálculo automático de contexto geográfico
+ *  - Propagar al persistir TODOS los campos descriptivos opcionales
+ *    (tipoDefecto, elementoAfectado, etc.)
  *  - Soft delete y restauración
  *  - Gestión de archivos (informe interno / externo)
  *  - Registro de auditoría en cada operación
  *  - Invalidación de caché de KPIs/gráficos cuando cambian datos
+ *  - Cargar acciones (historial) en el endpoint de detalle
  *
- * 🎯 Filtros: el frontend envía IDs directamente (no códigos).
- * Sin traducciones, sin N+1, sin acceso a repos internos.
+ * ⚠️ Importante: este service NO toca FallaRiel.estadoActual /
+ * accionActual / ptActual / fechaEjecucionActual. Esos campos
+ * son sincronizados exclusivamente por FallasRielAccionService.
  * ============================================================
  */
 @Injectable()
@@ -53,6 +60,7 @@ export class FallasRielService {
 
   constructor(
     private readonly fallasRepo: FallasRielRepository,
+    private readonly accionesRepo: FallasRielAccionRepository, // ← FASE 2: para cargar timeline
     private readonly geolocalizacion: GeolocalizacionService,
     private readonly auditoria: AuditoriaService,
     private readonly storage: StorageService,
@@ -66,6 +74,10 @@ export class FallasRielService {
   // CONSULTAS
   // ----------------------------------------------------------
 
+  /**
+   * Detalle de una falla. Incluye el timeline de acciones (Fase 2).
+   * Si la falla no tiene acciones, el array `acciones` viene vacío.
+   */
   async obtenerPorId(
     id: number,
     incluirEliminadas = false,
@@ -74,7 +86,14 @@ export class FallasRielService {
     if (!falla) {
       throw new NotFoundException(`FallaRiel con id ${id} no encontrada`);
     }
-    return FallaRielResponseDto.fromEntity(falla);
+
+    // 🆕 FASE 2: cargar timeline de acciones para el detalle.
+    // No filtramos eliminadas porque queremos el historial completo
+    // visible para el inspector (acciones eliminadas se marcan en UI).
+    const acciones = await this.accionesRepo.listarPorFalla(id, false);
+    falla.acciones = acciones;
+
+    return FallaRielResponseDto.fromEntity(falla, { incluirAcciones: true });
   }
 
   async listar(filtros: FiltrarFallasRielDto) {
@@ -86,8 +105,9 @@ export class FallasRielService {
   }
 
   /**
-   * ✨ Listado unificado. Recibe IDs directamente del frontend,
-   * cero traducción de strings, cero N+1.
+   * Listado paginado. NO incluye acciones (sería costoso y no se necesita
+   * en la vista de tabla). El listado lee los 4 campos desnormalizados
+   * de FallaRiel para mostrar estado actual.
    */
   private async listarInterno(
     filtros: FiltrarFallasRielDto,
@@ -111,6 +131,7 @@ export class FallasRielService {
     const limit = filtros.limit ?? 20;
 
     return {
+      // Sin acciones en listado (incluirAcciones=false por default)
       data: fallas.map((f) => FallaRielResponseDto.fromEntity(f)),
       total,
       page,
@@ -129,17 +150,47 @@ export class FallasRielService {
   ): Promise<FallaRielResponseDto> {
     const contexto = await this.geolocalizacion.calcular(dto.progresiva, dto.via);
 
+    // 🆕 FASE 2: construir el objeto de persistencia incluyendo todos los
+    // campos opcionales descriptivos. Si vienen undefined, la entidad
+    // aplica los defaults (SIN_DEFINIR, NO_APLICA, NO_ATENDIDO).
     const creada = await this.fallasRepo.crear({
+      // Originales
       progresiva: dto.progresiva,
       via: dto.via,
       fecha: new Date(dto.fecha),
       carril: dto.carril,
       causa: dto.causa ?? null,
       origen: dto.origen ?? null,
+
+      // 🆕 FASE 2 — Caracterización (si vienen, se persisten; si no, default BD)
+      ...(dto.tipoDefecto !== undefined && { tipoDefecto: dto.tipoDefecto }),
+      ...(dto.elementoAfectado !== undefined && { elementoAfectado: dto.elementoAfectado }),
+      ...(dto.zonaAfectada !== undefined && { zonaAfectada: dto.zonaAfectada }),
+      ...(dto.perfil !== undefined && { perfil: dto.perfil }),
+      ...(dto.altaBaja !== undefined && { altaBaja: dto.altaBaja }),
+
+      // 🆕 FASE 2 — Medidas (nullables)
+      progresivaFinal: dto.progresivaFinal ?? null,
+      largo: dto.largo ?? null,
+      ancho: dto.ancho ?? null,
+      profundidad: dto.profundidad ?? null,
+      numeroFoto: dto.numeroFoto ?? null,
+      tipoOnda: dto.tipoOnda ?? null,
+
+      // Estado desnormalizado inicial: NO_ATENDIDO con nulls
+      // (no aceptamos esto del DTO, lo seteamos siempre)
+      estadoActual: EstadoFalla.NO_ATENDIDO,
+      accionActual: null,
+      ptActual: null,
+      fechaEjecucionActual: null,
+
+      // Contexto geográfico calculado
       tramoId: contexto.tramoId,
       curvaHorizontalId: contexto.curvaHorizontalId,
       curvaVerticalId: contexto.curvaVerticalId,
       velocidadKmh: contexto.velocidadKmh,
+
+      // Auditoría
       creadoPor: user.id,
       actualizadoPor: null,
       eliminado: false,
@@ -196,13 +247,35 @@ export class FallasRielService {
       };
     }
 
+    // 🆕 FASE 2: incluimos los nuevos campos descriptivos opcionales.
+    // NOTA IMPORTANTE: los 4 campos del bloque "estado desnormalizado"
+    // (estadoActual, accionActual, ptActual, fechaEjecucionActual)
+    // NO se incluyen aquí. Eso es responsabilidad exclusiva del
+    // FallasRielAccionService. Si dto los enviara, los ignoramos.
     const cambios: Partial<FallaRiel> = {
+      // Originales
       ...(dto.progresiva !== undefined && { progresiva: dto.progresiva }),
       ...(dto.via !== undefined && { via: dto.via }),
       ...(dto.fecha !== undefined && { fecha: new Date(dto.fecha) }),
       ...(dto.carril !== undefined && { carril: dto.carril }),
       ...(dto.causa !== undefined && { causa: dto.causa }),
       ...(dto.origen !== undefined && { origen: dto.origen }),
+
+      // 🆕 FASE 2 — Caracterización
+      ...(dto.tipoDefecto !== undefined && { tipoDefecto: dto.tipoDefecto }),
+      ...(dto.elementoAfectado !== undefined && { elementoAfectado: dto.elementoAfectado }),
+      ...(dto.zonaAfectada !== undefined && { zonaAfectada: dto.zonaAfectada }),
+      ...(dto.perfil !== undefined && { perfil: dto.perfil }),
+      ...(dto.altaBaja !== undefined && { altaBaja: dto.altaBaja }),
+
+      // 🆕 FASE 2 — Medidas
+      ...(dto.progresivaFinal !== undefined && { progresivaFinal: dto.progresivaFinal }),
+      ...(dto.largo !== undefined && { largo: dto.largo }),
+      ...(dto.ancho !== undefined && { ancho: dto.ancho }),
+      ...(dto.profundidad !== undefined && { profundidad: dto.profundidad }),
+      ...(dto.numeroFoto !== undefined && { numeroFoto: dto.numeroFoto }),
+      ...(dto.tipoOnda !== undefined && { tipoOnda: dto.tipoOnda }),
+
       ...contextoNuevo,
       actualizadoPor: user.id,
     };
@@ -291,17 +364,12 @@ export class FallasRielService {
   }
 
   // ----------------------------------------------------------
-  // ARCHIVOS (informe interno / externo)
+  // ARCHIVOS (informe interno / externo) — SIN CAMBIOS desde Fase 1
   // ----------------------------------------------------------
 
   /**
    * 🚨 FIX RACE CONDITION:
    * Orden seguro: subir nuevo → actualizar BD → eliminar viejo.
-   *
-   * Si la subida falla, el archivo viejo sigue intacto.
-   * Si la actualización de BD falla, el archivo nuevo queda
-   * huérfano (lo limpia el job de limpieza), pero el viejo
-   * sigue siendo válido.
    */
   async adjuntarArchivo(
     id: number,
@@ -321,11 +389,9 @@ export class FallasRielService {
         ? falla.urlInformeInterno
         : falla.urlInformeExterno;
 
-    // 1. Subir el archivo nuevo PRIMERO (si falla, conservamos el viejo)
     const subcarpeta = `falla-${id}`;
     const subido = await this.storage.subir(bucket, archivo, subcarpeta);
 
-    // 2. Actualizar BD con la nueva ruta
     const cambios: Partial<FallaRiel> =
       tipo === TipoArchivoFalla.INTERNO
         ? {
@@ -342,12 +408,10 @@ export class FallasRielService {
     try {
       await this.fallasRepo.actualizar(falla, cambios);
     } catch (err) {
-      // Si falla la BD, limpiamos el archivo recién subido (rollback manual)
       await this.storage.eliminar(bucket, subido.rutaStorage);
       throw err;
     }
 
-    // 3. Recién ahora eliminamos el archivo viejo (la BD ya no lo referencia)
     if (rutaAnterior) {
       await this.storage.eliminar(bucket, rutaAnterior);
     }
@@ -360,8 +424,6 @@ export class FallasRielService {
       user,
       detalle: { archivoSubido: tipo, nombre: subido.nombreArchivo },
     });
-
-    // No invalidamos caché analítico: los archivos no afectan KPIs ni gráficos.
 
     const actualizada = await this.fallasRepo.buscarPorId(id);
     return FallaRielResponseDto.fromEntity(actualizada!);
@@ -401,10 +463,7 @@ export class FallasRielService {
             actualizadoPor: user.id,
           };
 
-    // Actualizamos BD primero (si falla, el archivo sigue accesible)
     await this.fallasRepo.actualizar(falla, cambios);
-
-    // Recién ahora eliminamos del storage
     await this.storage.eliminar(bucket, ruta);
 
     await registrarAuditoria(this.auditoria, {
@@ -446,7 +505,7 @@ export class FallasRielService {
   }
 
   // ----------------------------------------------------------
-  // AUDITORÍA (página de admin)
+  // AUDITORÍA
   // ----------------------------------------------------------
 
   async contarEliminados(): Promise<number> {
@@ -457,22 +516,12 @@ export class FallasRielService {
   // HELPERS PRIVADOS
   // ----------------------------------------------------------
 
-  /**
-   * Mapea un tipo de archivo al bucket de Supabase correspondiente.
-   */
   private bucketParaTipo(tipo: TipoArchivoFalla): string {
     return tipo === TipoArchivoFalla.INTERNO
       ? STORAGE_BUCKETS.FALLAS_RIEL_INTERNO
       : STORAGE_BUCKETS.FALLAS_RIEL_EXTERNO;
   }
 
-  /**
-   * Invalida toda la caché analítica cuando hay un cambio
-   * en datos (crear/actualizar/eliminar/restaurar).
-   *
-   * Los archivos NO invocan este método porque no cambian
-   * los datos de la falla, solo el adjunto.
-   */
   private invalidarCacheAnalitico(): void {
     this.kpisService.invalidarCache();
     this.grafico1Service.invalidarCacheBase();

@@ -1,12 +1,19 @@
 import { useState } from 'react';
+import { Plus } from 'lucide-react';
+
 import { useApiQuery } from '@/hooks/use-api-query';
 import { usuariosApi } from '@/lib/api/usuarios.api';
+
+import { PageHeader } from '@/components/layout/page-header';
+import { Button } from '@/components/ui/button';
+
 import { FiltrosUsuarios } from './filtros-usuarios';
 import { TablaUsuarios } from './tabla-usuarios';
 import { FormUsuario } from './form-usuario';
-import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
-import type { FiltrosUsuarios as FiltrosType, Usuario } from './types/usuarios.types';
+import type {
+  FiltrosUsuarios as FiltrosType,
+  Usuario,
+} from './types/usuarios.types';
 
 export function UsuariosPage() {
   const [filtros, setFiltros] = useState<FiltrosType>({ page: 1, limit: 20 });
@@ -41,18 +48,18 @@ export function UsuariosPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Usuarios</h1>
-          <p className="text-sm text-muted-foreground">
-            Gestión de cuentas del sistema
-          </p>
-        </div>
-        <Button onClick={handleNuevo}>
-          <Plus className="mr-2 h-4 w-4" /> Nuevo usuario
-        </Button>
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title="Usuarios"
+        subtitle="Gestión de cuentas del sistema"
+        breadcrumb={[{ label: 'Administración' }, { label: 'Usuarios' }]}
+        actions={
+          <Button size="sm" onClick={handleNuevo}>
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
+            Nuevo usuario
+          </Button>
+        }
+      />
 
       <FiltrosUsuarios
         filtros={filtros}

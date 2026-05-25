@@ -1,16 +1,23 @@
 import { useState } from 'react';
+import { Plus } from 'lucide-react';
+
 import { useApiQuery } from '@/hooks/use-api-query';
 import { temperaturaApi } from '@/lib/api/temperatura.api';
+
+import { PageHeader } from '@/components/layout/page-header';
+import { Button } from '@/components/ui/button';
+
 import { FiltrosImportaciones } from './filtros-importaciones';
 import { TablaImportaciones } from './tabla-importaciones';
 import { FormImportar } from './form-importar';
-import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
 import type { FiltrosImportaciones as FiltrosType } from '../types/importacion-types';
 
 export function ImportacionesPage() {
   const [filtros, setFiltros] = useState<FiltrosType>({ page: 1, limit: 20 });
-  const [filtrosAplicados, setFiltrosAplicados] = useState<FiltrosType>({ page: 1, limit: 20 });
+  const [filtrosAplicados, setFiltrosAplicados] = useState<FiltrosType>({
+    page: 1,
+    limit: 20,
+  });
   const [mostrarForm, setMostrarForm] = useState(false);
 
   const { data, isLoading } = useApiQuery({
@@ -27,18 +34,21 @@ export function ImportacionesPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Importaciones de Temperatura</h1>
-          <p className="text-sm text-muted-foreground">
-            Suba archivos CSV, Excel o XML con lecturas de temperatura
-          </p>
-        </div>
-        <Button onClick={() => setMostrarForm(true)}>
-          <Plus className="mr-2 h-4 w-4" /> Nueva importación
-        </Button>
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title="Importaciones de Temperatura"
+        subtitle="Suba archivos CSV, Excel o XML con lecturas de temperatura."
+        breadcrumb={[
+          { label: 'Temperatura' },
+          { label: 'Importaciones' },
+        ]}
+        actions={
+          <Button size="sm" onClick={() => setMostrarForm(true)}>
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
+            Nueva importación
+          </Button>
+        }
+      />
 
       <FiltrosImportaciones
         filtros={filtros}
@@ -58,7 +68,7 @@ export function ImportacionesPage() {
           onClose={() => setMostrarForm(false)}
           onSuccess={() => {
             setMostrarForm(false);
-            handleBuscar(); // refresca la tabla
+            handleBuscar();
           }}
         />
       )}

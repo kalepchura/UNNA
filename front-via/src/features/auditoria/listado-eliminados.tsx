@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { DataTable } from '@/components/tables/data-table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,7 +17,7 @@ import { fallasApi } from '@/lib/api/fallas.api';
 import { temperaturaApi } from '@/lib/api/temperatura.api';
 import { desgasteApi } from '@/lib/api/desgaste.api';
 import type { ColumnDef } from '@tanstack/react-table';
-import { RotateCcw, Eye, Search } from 'lucide-react';
+import { RotateCcw, Search } from 'lucide-react';
 import { formatearFecha, formatearFechaHora } from '@/lib/format';
 
 // Configuración de cada entidad eliminable
@@ -26,31 +25,26 @@ const ENTIDADES_CONFIG: Record<string, {
   nombre: string;
   listar: (filtros: { page: number; limit: number }) => Promise<any>;
   restaurar: (id: number) => Promise<void>;
-  rutaDetalle: (id: number) => string;
 }> = {
   'fallas-riel': {
     nombre: 'Fallas en Riel',
     listar: (filtros) => fallasApi.riel.listarEliminados(filtros),
     restaurar: (id) => fallasApi.riel.restaurar(id),
-    rutaDetalle: (id) => `/fallas/riel/${id}`,
   },
   'fallas-soldadura-inox': {
     nombre: 'Fallas Soldadura Inox',
     listar: (filtros) => fallasApi.soldadura.listarEliminados(filtros),
     restaurar: (id) => fallasApi.soldadura.restaurar(id),
-    rutaDetalle: (id) => `/fallas/soldadura/${id}`,
   },
   'temperatura-importaciones': {
     nombre: 'Importaciones de Temperatura',
     listar: (filtros) => temperaturaApi.importaciones.listarEliminadas(filtros),
     restaurar: (id) => temperaturaApi.importaciones.restaurar(id),
-    rutaDetalle: (id) => `/temperatura/importaciones/${id}`,
   },
   'desgaste-escenarios-mtb': {
     nombre: 'Escenarios MTB',
     listar: (filtros) => desgasteApi.escenarios.listarEliminados(filtros),
     restaurar: (id) => desgasteApi.escenarios.restaurar(id),
-    rutaDetalle: (id) => `/desgaste/escenarios/${id}/valores`,
   },
 };
 
@@ -58,13 +52,11 @@ interface FilaUnificada {
   id: number;
   entidadCodigo: string;
   entidadNombre: string;
-  fecha: string;        // ISO
-  usuario: string;      // nombre o UUID
+  fecha: string;
   datosOriginales: any;
 }
 
 export function ListadoEliminados() {
-  const navigate = useNavigate();
   const invalidate = useInvalidate();
   const [page, setPage] = useState(1);
   const [filtroEntidad, setFiltroEntidad] = useState<string>('todas');
@@ -88,24 +80,17 @@ export function ListadoEliminados() {
     queryFn: () => ENTIDADES_CONFIG['desgaste-escenarios-mtb'].listar({ page: 1, limit: 100 }),
   });
 
-  // Combinar filas y extraer fecha + usuario
+  // Combinar filas y extraer fecha
   const todasLasFilas = useMemo<FilaUnificada[]>(() => {
     const combinar = (codigo: string, resultado: any) => {
       if (!resultado?.data) return [];
       return resultado.data.map((item: any) => {
-        // Intentar obtener la fecha de última actualización (eliminación)
         const fecha = item.actualizadoEn ?? item.fecha ?? item.fechaSubida ?? '';
-        // Intentar obtener el nombre del usuario que eliminó (si no, UUID o placeholder)
-        const usuario =
-          item.usuarioNombre ??           // si viene en el objeto
-          item.creadoPor ??               // UUID del creador (fallback)
-          '—';
         return {
           id: item.id,
           entidadCodigo: codigo,
           entidadNombre: ENTIDADES_CONFIG[codigo].nombre,
           fecha,
-          usuario,
           datosOriginales: item,
         };
       });
@@ -166,42 +151,29 @@ export function ListadoEliminados() {
       },
     },
     {
-      accessorKey: 'usuario',
-      header: 'Usuario',
-      cell: ({ row }) => <span className="text-sm">{row.original.usuario}</span>,
-    },
-    {
       accessorKey: 'entidadNombre',
       header: 'Entidad',
       cell: ({ row }) => <span className="text-sm font-medium">{row.original.entidadNombre}</span>,
     },
     {
       header: 'Acciones',
-      cell: ({ row }) => {
-        const ruta = ENTIDADES_CONFIG[row.original.entidadCodigo]?.rutaDetalle(row.original.id);
-        return (
-          <div className="flex items-center gap-2">
-            {ruta && (
-              <Button variant="ghost" size="sm" onClick={() => navigate(ruta)}>
-                <Eye className="mr-1 h-4 w-4" /> Ver detalle
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                restaurarMut.mutate({
-                  entidadCodigo: row.original.entidadCodigo,
-                  id: row.original.id,
-                })
-              }
-              disabled={restaurarMut.isPending}
-            >
-              <RotateCcw className="mr-1 h-3 w-3" /> Restaurar
-            </Button>
-          </div>
-        );
-      },
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              restaurarMut.mutate({
+                entidadCodigo: row.original.entidadCodigo,
+                id: row.original.id,
+              })
+            }
+            disabled={restaurarMut.isPending}
+          >
+            <RotateCcw className="mr-1 h-3 w-3" /> Restaurar
+          </Button>
+        </div>
+      ),
     },
   ];
 

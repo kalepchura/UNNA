@@ -1,4 +1,5 @@
 export interface CargarGrillaFiltros {
+  escenarioId?: number;
   anios?: number[];
   tramoIds?: number[];
 }
@@ -10,6 +11,7 @@ export interface FilaGrillaDto {
   via: string;
   tramoCodigo: string;
   tramoNombre: string;
+
   mediciones: Record<
     number,
     Record<
@@ -39,6 +41,7 @@ export interface CeldaModificadaDto {
 }
 
 export interface GuardarCambiosRequest {
+  escenarioId: number;
   cambios: CeldaModificadaDto[];
 }
 

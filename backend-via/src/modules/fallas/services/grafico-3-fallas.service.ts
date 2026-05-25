@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { FallasAnalyticsRepository } from '../repositories/fallas-analytics.repository';
+import { FallasAnalyticsRepository, FiltrosAnaliticosRiel } from '../repositories/fallas-analytics.repository';
 import { Grafico3RequestDto } from '../dto/graficos/grafico-3/grafico-3-request.dto';
 import {
   Grafico3ResponseDto,
@@ -17,17 +17,23 @@ const CONFIG_BASE_G3 = {
   tipoFalla: TipoFallaFiltro.AMBAS,
   tipoVia: TipoViaFiltro.AMBAS,
   apilarPorTipo: false,
-  tramoIds: [],
+  tramoIds: [] as number[],
+  curvaHorizontalIds: [] as number[],
+  curvaVerticalIds: [] as number[],
+  tipoDefectos: [] as string[],
+  elementosAfectados: [] as string[],
+  zonasAfectadas: [] as string[],
+  perfiles: [] as string[],
+  estadosActuales: [] as string[],
 };
 
 @Injectable()
 export class Grafico3FallasService {
-  // Cache para configuración BASE
   private cacheBase: { data: Grafico3ResponseDto | null; expira: number } = {
     data: null,
     expira: 0,
   };
-  private readonly TTL_MS = 5 * 60 * 1000; // 5 minutos
+  private readonly TTL_MS = 5 * 60 * 1000;
 
   constructor(
     private readonly analyticsRepo: FallasAnalyticsRepository,
@@ -35,9 +41,6 @@ export class Grafico3FallasService {
   ) {}
 
   async calcular(request: Grafico3RequestDto): Promise<Grafico3ResponseDto> {
-    // 🔒 FIX: filtrar undefined del request antes del merge.
-    // Si el frontend manda { fechaDesde: undefined }, el spread lo
-    // sobrescribiría con undefined pisando el default → crash.
     const configLimpia = limpiarUndefined(request.config ?? {});
 
     const config = {
@@ -47,6 +50,13 @@ export class Grafico3FallasService {
       tipoVia: CONFIG_BASE_G3.tipoVia,
       apilarPorTipo: CONFIG_BASE_G3.apilarPorTipo,
       tramoIds: CONFIG_BASE_G3.tramoIds,
+      curvaHorizontalIds: CONFIG_BASE_G3.curvaHorizontalIds,
+      curvaVerticalIds: CONFIG_BASE_G3.curvaVerticalIds,
+      tipoDefectos: CONFIG_BASE_G3.tipoDefectos,
+      elementosAfectados: CONFIG_BASE_G3.elementosAfectados,
+      zonasAfectadas: CONFIG_BASE_G3.zonasAfectadas,
+      perfiles: CONFIG_BASE_G3.perfiles,
+      estadosActuales: CONFIG_BASE_G3.estadosActuales,
       ...configLimpia,
     };
 
@@ -59,10 +69,7 @@ export class Grafico3FallasService {
       }
 
       const result = await this.calcularDesdeBD(config);
-      this.cacheBase = {
-        data: result,
-        expira: ahora + this.TTL_MS,
-      };
+      this.cacheBase = { data: result, expira: ahora + this.TTL_MS };
       return result;
     }
 
@@ -78,7 +85,14 @@ export class Grafico3FallasService {
       config.tipoFalla === CONFIG_BASE_G3.tipoFalla &&
       config.tipoVia === CONFIG_BASE_G3.tipoVia &&
       config.apilarPorTipo === CONFIG_BASE_G3.apilarPorTipo &&
-      JSON.stringify(config.tramoIds) === JSON.stringify(CONFIG_BASE_G3.tramoIds)
+      JSON.stringify(config.tramoIds) === JSON.stringify(CONFIG_BASE_G3.tramoIds) &&
+      JSON.stringify(config.curvaHorizontalIds) === JSON.stringify(CONFIG_BASE_G3.curvaHorizontalIds) &&
+      JSON.stringify(config.curvaVerticalIds) === JSON.stringify(CONFIG_BASE_G3.curvaVerticalIds) &&
+      JSON.stringify(config.tipoDefectos) === JSON.stringify(CONFIG_BASE_G3.tipoDefectos) &&
+      JSON.stringify(config.elementosAfectados) === JSON.stringify(CONFIG_BASE_G3.elementosAfectados) &&
+      JSON.stringify(config.zonasAfectadas) === JSON.stringify(CONFIG_BASE_G3.zonasAfectadas) &&
+      JSON.stringify(config.perfiles) === JSON.stringify(CONFIG_BASE_G3.perfiles) &&
+      JSON.stringify(config.estadosActuales) === JSON.stringify(CONFIG_BASE_G3.estadosActuales)
     );
   }
 
@@ -95,7 +109,6 @@ export class Grafico3FallasService {
 
     const viaFiltro = config.tipoVia === TipoViaFiltro.AMBAS ? null : config.tipoVia;
 
-    // 🔒 Defensa: si las fechas siguen siendo inválidas, usar defaults
     const fechaDesde = parsearFechaSegura(
       config.fechaDesde,
       this.calcularFechaDefaultDesde(),
@@ -105,6 +118,16 @@ export class Grafico3FallasService {
       this.calcularFechaDefaultHasta(),
     );
 
+    const filtrosRiel: FiltrosAnaliticosRiel = {
+      curvaHorizontalIds: config.curvaHorizontalIds,
+      curvaVerticalIds: config.curvaVerticalIds,
+      tipoDefectos: config.tipoDefectos,
+      elementosAfectados: config.elementosAfectados,
+      zonasAfectadas: config.zonasAfectadas,
+      perfiles: config.perfiles,
+      estadosActuales: config.estadosActuales,
+    };
+
     const filas = await this.analyticsRepo.fallasPorVelocidadYTipo(
       fechaDesde,
       fechaHasta,
@@ -112,6 +135,7 @@ export class Grafico3FallasService {
       incluirSoldadura,
       viaFiltro,
       config.tramoIds,
+      filtrosRiel,
     );
 
     const categorias = velocidadesCatalogo.map((v) => `${v} km/h`);
@@ -126,10 +150,7 @@ export class Grafico3FallasService {
       configAplicada: config,
       categorias,
       series,
-      metadata: {
-        totalFallas,
-        calculadoEn: new Date(),
-      },
+      metadata: { totalFallas, calculadoEn: new Date() },
     };
   }
 
@@ -180,10 +201,6 @@ export class Grafico3FallasService {
 // HELPERS LOCALES
 // ============================================================
 
-/**
- * Quita propiedades undefined de un objeto antes de un spread.
- * Evita que `{ ...defaults, ...{ x: undefined } }` pise el default.
- */
 function limpiarUndefined<T extends Record<string, any>>(obj: T): Partial<T> {
   const result: Partial<T> = {};
   for (const key in obj) {
@@ -194,10 +211,6 @@ function limpiarUndefined<T extends Record<string, any>>(obj: T): Partial<T> {
   return result;
 }
 
-/**
- * Convierte un string a Date de forma segura.
- * Si el string es vacío, null o no parsea bien, usa el fallback.
- */
 function parsearFechaSegura(valor: string | undefined, fallback: string): Date {
   if (!valor || valor.trim() === '') {
     return new Date(fallback);

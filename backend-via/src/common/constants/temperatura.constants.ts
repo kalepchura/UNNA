@@ -32,8 +32,8 @@ export const TEMPERATURA_ARCHIVO = {
 export const TEMPERATURA_KPI = {
   /** KPI 1 — Temperatura máxima del último mes. */
   KPI1: {
-    UMBRAL_AMARILLO: 36, // 36-45 = amarillo
-    UMBRAL_ROJO: 46,     // > 45 = rojo (≥ 46 técnicamente)
+    UMBRAL_AMARILLO: 44, // 44-49 = amarillo
+    UMBRAL_ROJO: 49,     // > 49 = rojo (≥ 49 técnicamente)
   },
   /** KPI 2 — Cantidad de zonas en alerta del año. */
   KPI2: {
@@ -45,7 +45,7 @@ export const TEMPERATURA_KPI = {
     UMBRAL_AMARILLO: 4,  // 4-7 = amarillo
     UMBRAL_ROJO: 8,      // > 7 = rojo (≥ 8)
     /** Umbral de °C para considerar un registro "en alerta". */
-    UMBRAL_ALERTA_CELSIUS: 45,
+    UMBRAL_ALERTA_CELSIUS: 49,
   },
 } as const;
 

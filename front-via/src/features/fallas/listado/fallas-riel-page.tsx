@@ -1,30 +1,53 @@
 /**
  * Página de listado de fallas riel.
- * Junta: filtros + tabla + paginación + botón "nueva".
+ * Fase 4: Crear / Editar / Ver abren en un <Sheet/> (drawer lateral)
+ * en lugar de navegar a otra página. Mejor UX, contexto preservado.
  */
 
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
+import { Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+
 import { Button } from '@/components/ui/button';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetBody,
+  SheetTitle,
+  SheetDescription,
+} from '@/components/ui/sheet';
+import { PageHeader } from '@/components/layout/page-header';
+import {
+  DataCard,
+  DataToolbar,
+  DataPagination,
+} from '@/components/shared/data-card';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
+
 import { FiltrosRiel } from './filtros-riel';
 import { ListadoRiel } from './listado-riel';
+import { FallaRielFormPage } from '@/features/fallas/formulario/falla-riel-form-page';
+import { FallaRielDetallePage } from '@/features/fallas/detalle/falla-riel-detalle-page';
+
 import {
   useFallasRiel,
   useEliminarFallaRiel,
 } from '@/features/fallas/hooks/use-fallas-riel';
 import type { FiltrosFallaRiel } from '@/features/fallas/types/falla-riel.types';
 
-const FILTROS_INICIALES: FiltrosFallaRiel = {
-  page: 1,
-  limit: 20,
-};
+const FILTROS_INICIALES: FiltrosFallaRiel = { page: 1, limit: 20 };
+
+type SheetMode = null | { mode: 'create' } | { mode: 'edit'; id: number } | { mode: 'view'; id: number };
 
 export function FallasRielPage() {
   const [filtros, setFiltros] = useState<FiltrosFallaRiel>(FILTROS_INICIALES);
   const [idAEliminar, setIdAEliminar] = useState<number | null>(null);
   const [eliminandoId, setEliminandoId] = useState<number | null>(null);
+
+  // Estado del Sheet (drawer)
+  const [sheetState, setSheetState] = useState<SheetMode>(null);
+  const closeSheet = () => setSheetState(null);
 
   const { data, isLoading } = useFallasRiel(filtros);
   const eliminarMut = useEliminarFallaRiel();
@@ -46,66 +69,151 @@ export function FallasRielPage() {
     }
   };
 
-  const handlePagina = (nuevaPagina: number) => {
-    setFiltros((prev) => ({ ...prev, page: nuevaPagina }));
-  };
+  const handlePagina = (n: number) => setFiltros((p) => ({ ...p, page: n }));
+
+  // Computed: contenido del sheet según mode
+  const sheetTitle =
+    sheetState?.mode === 'create'
+      ? 'Nueva falla de riel'
+      : sheetState?.mode === 'edit'
+        ? `Editar falla #${sheetState.id}`
+        : sheetState?.mode === 'view'
+          ? `Falla #${sheetState.id}`
+          : '';
+
+  const sheetDescription =
+    sheetState?.mode === 'create'
+      ? 'Completa los datos para registrar una nueva falla.'
+      : sheetState?.mode === 'edit'
+        ? 'Modifica los datos de la falla.'
+        : sheetState?.mode === 'view'
+          ? 'Detalle completo del registro.'
+          : '';
 
   return (
-    <div className="pagina-fallas-riel p-4 space-y-4">
-      {/* Header */}
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Fallas de Riel</h1>
-        <Button asChild>
-          <Link to="/fallas/riel/nueva">+ Nueva falla</Link>
-        </Button>
-      </header>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title="Fallas de Riel"
+        subtitle="Listado y gestión de fallas detectadas en el riel"
+        breadcrumb={[{ label: 'Fallas' }, { label: 'Riel' }]}
+        actions={
+          <Button size="sm" onClick={() => setSheetState({ mode: 'create' })}>
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
+            Nueva falla
+          </Button>
+        }
+      />
 
-      {/* Filtros */}
       <FiltrosRiel
         filtros={filtros}
         onChange={setFiltros}
         onLimpiar={handleLimpiar}
       />
 
-      {/* Total */}
-      {data && (
-        <p className="text-sm text-muted-foreground">
-          Mostrando {data.data.length} de {data.total} fallas
-        </p>
-      )}
-
-      {/* Tabla */}
-      <ListadoRiel
-        fallas={data?.data ?? []}
-        isLoading={isLoading}
-        onEliminar={setIdAEliminar}
-        eliminandoId={eliminandoId}
-      />
-
-      {/* Paginación */}
-      {data && data.totalPages > 1 && (
-        <div className="flex justify-center gap-2">
-          <Button
-            variant="outline"
-            disabled={(filtros.page ?? 1) <= 1}
-            onClick={() => handlePagina((filtros.page ?? 1) - 1)}
-          >
-            Anterior
-          </Button>
-          <span className="px-4 py-2">
-            Página {data.page} de {data.totalPages}
+      <DataCard>
+        <DataToolbar>
+          <span className="text-sm text-muted-foreground">
+            {data ? (
+              <>
+                Mostrando{' '}
+                <span className="font-medium text-foreground tabular-nums">
+                  {data.data.length}
+                </span>{' '}
+                de{' '}
+                <span className="font-medium text-foreground tabular-nums">
+                  {data.total}
+                </span>{' '}
+                fallas
+              </>
+            ) : (
+              'Cargando…'
+            )}
           </span>
-          <Button
-            variant="outline"
-            disabled={(filtros.page ?? 1) >= data.totalPages}
-            onClick={() => handlePagina((filtros.page ?? 1) + 1)}
-          >
-            Siguiente
-          </Button>
-        </div>
-      )}
+        </DataToolbar>
 
-      {/* Confirmación de eliminar */}
+        <ListadoRiel
+          fallas={data?.data ?? []}
+          isLoading={isLoading}
+          onEliminar={setIdAEliminar}
+          eliminandoId={eliminandoId}
+          onVer={(id) => setSheetState({ mode: 'view', id })}
+          onEditar={(id) => setSheetState({ mode: 'edit', id })}
+        />
+
+        {data && data.totalPages > 1 && (
+          <DataPagination>
+            <span className="text-muted-foreground">
+              Página{' '}
+              <span className="font-medium text-foreground tabular-nums">
+                {data.page}
+              </span>{' '}
+              de{' '}
+              <span className="font-medium text-foreground tabular-nums">
+                {data.totalPages}
+              </span>
+            </span>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={(filtros.page ?? 1) <= 1}
+                onClick={() => handlePagina((filtros.page ?? 1) - 1)}
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+                Anterior
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={(filtros.page ?? 1) >= data.totalPages}
+                onClick={() => handlePagina((filtros.page ?? 1) + 1)}
+              >
+                Siguiente
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </DataPagination>
+        )}
+      </DataCard>
+
+      {/* ── SHEET: Crear / Editar / Ver ── */}
+      <Sheet
+        open={sheetState !== null}
+        onOpenChange={(open) => !open && closeSheet()}
+      >
+        <SheetContent side="right" size="2xl" className="sm:max-w-4xl">
+          <SheetHeader>
+            <SheetTitle>{sheetTitle}</SheetTitle>
+            {sheetDescription && (
+              <SheetDescription>{sheetDescription}</SheetDescription>
+            )}
+          </SheetHeader>
+          <SheetBody>
+            {sheetState?.mode === 'create' && (
+              <FallaRielFormPage
+                idOverride={null}
+                onClose={closeSheet}
+                onSuccess={() => closeSheet()}
+              />
+            )}
+            {sheetState?.mode === 'edit' && (
+              <FallaRielFormPage
+                idOverride={sheetState.id}
+                onClose={closeSheet}
+                onSuccess={() => closeSheet()}
+              />
+            )}
+            {sheetState?.mode === 'view' && (
+              <FallaRielDetallePage
+                idOverride={sheetState.id}
+                onClose={closeSheet}
+                onEditar={(id) => setSheetState({ mode: 'edit', id })}
+              />
+            )}
+          </SheetBody>
+        </SheetContent>
+      </Sheet>
+
       <ConfirmDialog
         open={idAEliminar != null}
         onOpenChange={(open) => !open && setIdAEliminar(null)}

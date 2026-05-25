@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { FallasAnalyticsRepository } from '../repositories/fallas-analytics.repository';
+import { FallasAnalyticsRepository, FiltrosAnaliticosRiel } from '../repositories/fallas-analytics.repository';
 import { Grafico2RequestDto } from '../dto/graficos/grafico-2/grafico-2-request.dto';
 import {
   Grafico2ResponseDto,
@@ -11,28 +11,72 @@ import {
   TipoViaFiltro,
 } from '../../../common/enums';
 
+/**
+ * Mapeo CATEGORIA → nombre de columna en BD.
+ *
+ * 🔒 SEGURIDAD CRÍTICA: este objeto es la ÚNICA whitelist de nombres
+ * de columnas que el repository puede inyectar en SQL. Los valores
+ * son strings literales hard-codeados, NUNCA input del usuario.
+ *
+ * Cualquier categoría nueva debe agregarse aquí Y en el enum CategoriaG2.
+ * Si el frontend manda una categoría sin mapeo válido, el service
+ * cae al default ACCION para no crashear.
+ *
+ * Casos:
+ *  - columnaRiel: null  → la categoría no existe en fallas_riel
+ *  - columnaSoldadura: null → la categoría no existe en fallas_soldadura_inox
+ *  - cv.via             → se requiere acceder al cambiavía (JOIN)
+ */
 const MAPEO_CATEGORIA: Record<
   CategoriaG2,
   { columnaRiel: string | null; columnaSoldadura: string | null }
 > = {
+  // ---------- existentes ----------
   [CategoriaG2.ACCION]: {
     columnaRiel: null,
     columnaSoldadura: 'accion',
   },
-
   [CategoriaG2.CARRIL]: {
     columnaRiel: 'carril',
     columnaSoldadura: null,
   },
-
   [CategoriaG2.UBICACION_FALLA]: {
     columnaRiel: null,
     columnaSoldadura: 'ubicacion_falla',
   },
-
   [CategoriaG2.VIA]: {
     columnaRiel: 'via',
     columnaSoldadura: 'cv.via',
+  },
+
+  // ---------- FASE 2.D — solo riel ----------
+  [CategoriaG2.TIPO_DEFECTO]: {
+    columnaRiel: 'tipo_defecto',
+    columnaSoldadura: null,
+  },
+  [CategoriaG2.ELEMENTO_AFECTADO]: {
+    columnaRiel: 'elemento_afectado',
+    columnaSoldadura: null,
+  },
+  [CategoriaG2.ZONA_AFECTADA]: {
+    columnaRiel: 'zona_afectada',
+    columnaSoldadura: null,
+  },
+  [CategoriaG2.PERFIL]: {
+    columnaRiel: 'perfil',
+    columnaSoldadura: null,
+  },
+  [CategoriaG2.ALTA_BAJA]: {
+    columnaRiel: 'alta_baja',
+    columnaSoldadura: null,
+  },
+  [CategoriaG2.ESTADO_ACTUAL]: {
+    columnaRiel: 'estado_actual',
+    columnaSoldadura: null,
+  },
+  [CategoriaG2.ACCION_ACTUAL_RIEL]: {
+    columnaRiel: 'accion_actual',
+    columnaSoldadura: null,
   },
 };
 
@@ -43,6 +87,13 @@ const CONFIG_BASE_G2 = {
   tipoVia: TipoViaFiltro.AMBAS,
   categoria: CategoriaG2.ACCION,
   tramoIds: [] as number[],
+  curvaHorizontalIds: [] as number[],
+  curvaVerticalIds: [] as number[],
+  tipoDefectos: [] as string[],
+  elementosAfectados: [] as string[],
+  zonasAfectadas: [] as string[],
+  perfiles: [] as string[],
+  estadosActuales: [] as string[],
 };
 
 @Injectable()
@@ -56,7 +107,6 @@ export class Grafico2FallasService {
   constructor(private readonly analyticsRepo: FallasAnalyticsRepository) {}
 
   async calcular(request: Grafico2RequestDto): Promise<Grafico2ResponseDto> {
-    // 🔒 FIX: Quitar undefined antes del merge para que no pisen los defaults
     const configLimpia = limpiarUndefined(request.config ?? {});
 
     const config = {
@@ -66,10 +116,17 @@ export class Grafico2FallasService {
       tipoVia: CONFIG_BASE_G2.tipoVia,
       categoria: CONFIG_BASE_G2.categoria,
       tramoIds: CONFIG_BASE_G2.tramoIds,
+      curvaHorizontalIds: CONFIG_BASE_G2.curvaHorizontalIds,
+      curvaVerticalIds: CONFIG_BASE_G2.curvaVerticalIds,
+      tipoDefectos: CONFIG_BASE_G2.tipoDefectos,
+      elementosAfectados: CONFIG_BASE_G2.elementosAfectados,
+      zonasAfectadas: CONFIG_BASE_G2.zonasAfectadas,
+      perfiles: CONFIG_BASE_G2.perfiles,
+      estadosActuales: CONFIG_BASE_G2.estadosActuales,
       ...configLimpia,
     };
 
-    // Validar categoría (si vino algo raro, usar default)
+    // Validar categoría: si vino algo fuera del mapeo, usar default
     if (!MAPEO_CATEGORIA[config.categoria]) {
       config.categoria = CategoriaG2.ACCION;
     }
@@ -99,7 +156,14 @@ export class Grafico2FallasService {
       config.tipoFalla === CONFIG_BASE_G2.tipoFalla &&
       config.tipoVia === CONFIG_BASE_G2.tipoVia &&
       config.categoria === CONFIG_BASE_G2.categoria &&
-      JSON.stringify(config.tramoIds) === JSON.stringify(CONFIG_BASE_G2.tramoIds)
+      JSON.stringify(config.tramoIds) === JSON.stringify(CONFIG_BASE_G2.tramoIds) &&
+      JSON.stringify(config.curvaHorizontalIds) === JSON.stringify(CONFIG_BASE_G2.curvaHorizontalIds) &&
+      JSON.stringify(config.curvaVerticalIds) === JSON.stringify(CONFIG_BASE_G2.curvaVerticalIds) &&
+      JSON.stringify(config.tipoDefectos) === JSON.stringify(CONFIG_BASE_G2.tipoDefectos) &&
+      JSON.stringify(config.elementosAfectados) === JSON.stringify(CONFIG_BASE_G2.elementosAfectados) &&
+      JSON.stringify(config.zonasAfectadas) === JSON.stringify(CONFIG_BASE_G2.zonasAfectadas) &&
+      JSON.stringify(config.perfiles) === JSON.stringify(CONFIG_BASE_G2.perfiles) &&
+      JSON.stringify(config.estadosActuales) === JSON.stringify(CONFIG_BASE_G2.estadosActuales)
     );
   }
 
@@ -116,7 +180,6 @@ export class Grafico2FallasService {
 
     const { columnaRiel, columnaSoldadura } = MAPEO_CATEGORIA[config.categoria];
 
-    // 🔒 Defensa adicional: validar que las fechas sean parseables
     const fechaDesde = parsearFechaSegura(
       config.fechaDesde,
       this.calcularFechaDefaultDesde(),
@@ -127,6 +190,16 @@ export class Grafico2FallasService {
       true,
     );
 
+    const filtrosRiel: FiltrosAnaliticosRiel = {
+      curvaHorizontalIds: config.curvaHorizontalIds,
+      curvaVerticalIds: config.curvaVerticalIds,
+      tipoDefectos: config.tipoDefectos,
+      elementosAfectados: config.elementosAfectados,
+      zonasAfectadas: config.zonasAfectadas,
+      perfiles: config.perfiles,
+      estadosActuales: config.estadosActuales,
+    };
+
     const filas = await this.analyticsRepo.fallasPorCategoria(
       columnaRiel,
       columnaSoldadura,
@@ -136,6 +209,7 @@ export class Grafico2FallasService {
       incluirSoldadura,
       viaFiltro,
       config.tramoIds,
+      filtrosRiel,
     );
 
     const barras: Grafico2BarraDto[] = filas.map((f) => ({
@@ -148,10 +222,7 @@ export class Grafico2FallasService {
     return {
       configAplicada: config,
       barras,
-      metadata: {
-        totalFallas,
-        calculadoEn: new Date(),
-      },
+      metadata: { totalFallas, calculadoEn: new Date() },
     };
   }
 
@@ -187,11 +258,6 @@ function limpiarUndefined<T extends Record<string, any>>(obj: T): Partial<T> {
   return result;
 }
 
-/**
- * Parsea una fecha de forma segura.
- * Si la fecha es inválida o vacía, usa el fallback.
- * Si esFin=true, agrega 23:59:59 para incluir todo el día.
- */
 function parsearFechaSegura(
   fecha: string | undefined,
   fallback: string,

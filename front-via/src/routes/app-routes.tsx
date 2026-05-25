@@ -26,7 +26,6 @@ import { EscenariosPage } from '@/features/desgaste/escenarios/escenarios-page';
 import { ValoresMtbPage } from '@/features/desgaste/escenarios/valores-mtb-page';
 import { MedicionesPage } from '@/features/desgaste/mediciones/mediciones-page';
 
-// Otros
 import { MapaCalorPage } from '@/features/mapa-calor/mapa-calor-page';
 import { AuditoriaPage } from '@/features/auditoria/auditoria-page';
 import { UsuariosPage } from '@/features/usuarios/usuarios-page';

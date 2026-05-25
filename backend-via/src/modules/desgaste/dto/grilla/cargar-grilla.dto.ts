@@ -9,6 +9,10 @@ import { Type } from 'class-transformer';
 import { ANIO_MINIMO } from '../../../../common/constants/desgaste.constants';
 
 export class CargarGrillaDto {
+  @IsInt()
+  @Min(1)
+  escenarioId!: number;
+
   @IsOptional()
   @IsArray()
   @Type(() => Number)
@@ -17,7 +21,6 @@ export class CargarGrillaDto {
   @Max(2100, { each: true })
   anios?: number[];
 
-  /** IDs de tramo (frontend envía números directamente). */
   @IsOptional()
   @IsArray()
   @IsInt({ each: true })

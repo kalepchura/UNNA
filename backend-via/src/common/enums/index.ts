@@ -183,10 +183,20 @@ export enum TipoViaFiltro {
 }
 
 export enum CategoriaG2 {
-  ACCION = 'ACCION',           // solo soldadura
-  CARRIL = 'CARRIL',           // solo riel
-  UBICACION_FALLA = 'UBICACION_FALLA', // solo soldadura
-  VIA = 'VIA',                 // ambas
+  // ------- existentes (no tocar) -------
+  ACCION = 'ACCION',                       // solo soldadura
+  CARRIL = 'CARRIL',                       // solo riel
+  UBICACION_FALLA = 'UBICACION_FALLA',     // solo soldadura
+  VIA = 'VIA',                             // ambas
+ 
+  // ------- FASE 2.D — nuevas dimensiones (solo riel) -------
+  TIPO_DEFECTO = 'TIPO_DEFECTO',
+  ELEMENTO_AFECTADO = 'ELEMENTO_AFECTADO',
+  ZONA_AFECTADA = 'ZONA_AFECTADA',
+  PERFIL = 'PERFIL',
+  ALTA_BAJA = 'ALTA_BAJA',
+  ESTADO_ACTUAL = 'ESTADO_ACTUAL',
+  ACCION_ACTUAL_RIEL = 'ACCION_ACTUAL_RIEL',
 }
 
 /**
@@ -245,4 +255,124 @@ export enum TipoAgrupacionDesgaste {
 export enum TipoArchivoFalla {
   INTERNO = 'interno',
   EXTERNO = 'externo',
+}
+
+
+// ============================================================
+// MÓDULO FALLAS — FALLA RIEL (extensión Fase 2)
+// ============================================================
+// Estos enums son específicos del módulo Fallas Riel.
+// NO se reusan en Soldadura (que tiene UbicacionFalla y AccionFalla
+// como enums propios). NO se reusan en Desgaste (que tiene PerfilRiel
+// como enum propio con solo 100RE y 115RE).
+//
+// Patrón "Null Object": casi todos los enums incluyen SIN_DEFINIR
+// como valor por defecto. Esto evita columnas nullable y permite
+// queries y gráficos más limpios (no hay que manejar IS NULL).
+// El inspector puede registrar la falla con datos parciales y luego
+// completar los campos que faltan.
+// ============================================================
+
+/**
+ * Tipo de defecto físico detectado en el riel.
+ * SIN_DEFINIR es el default cuando el inspector aún no clasificó.
+ */
+export enum TipoDefectoRiel {
+  SIN_DEFINIR = 'SIN_DEFINIR',
+  ASTILLAMIENTO_RCF = 'ASTILLAMIENTO_RCF',
+  SQUAT = 'SQUAT',
+  REBORDE = 'REBORDE',
+  ONDULACION = 'ONDULACION',
+  FISURA = 'FISURA',
+  DESGASTE_LATERAL = 'DESGASTE_LATERAL',
+  CORRUGACION = 'CORRUGACION',
+  OTRO = 'OTRO',
+}
+
+/**
+ * Elemento físico donde ocurrió la falla (dentro de vía corrida).
+ * NO confundir con FallaSoldaduraInox (que es para soldaduras de cambiavía).
+ */
+export enum ElementoAfectadoRiel {
+  SIN_DEFINIR = 'SIN_DEFINIR',
+  BARRA = 'BARRA',
+  SOLDADURA_ELECTROFUSION = 'SOLDADURA_ELECTROFUSION',
+  SOLDADURA_ALUMINOTERMICA = 'SOLDADURA_ALUMINOTERMICA',
+  JUNTA = 'JUNTA',
+}
+
+/**
+ * Zona del perfil del riel donde se manifiesta el defecto.
+ */
+export enum ZonaAfectadaRiel {
+  SIN_DEFINIR = 'SIN_DEFINIR',
+  BANDA_RODADURA = 'BANDA_RODADURA',
+  CARA_ACTIVA = 'CARA_ACTIVA',
+  CARA_PASIVA = 'CARA_PASIVA',
+  HONGO = 'HONGO',
+  ALMA = 'ALMA',
+  PATIN = 'PATIN',
+}
+
+/**
+ * Perfil técnico del riel donde se detectó la falla.
+ *
+ * ⚠️ Independiente de PerfilRiel (Desgaste), que solo tiene 100RE/115RE.
+ * Este enum tiene más valores porque las fallas pueden detectarse en
+ * tramos con perfiles que no necesariamente son los mismos donde se
+ * mide desgaste.
+ */
+export enum PerfilFallaRiel {
+  SIN_DEFINIR = 'SIN_DEFINIR',
+  P_115RE = '115RE',
+  P_100RE = '100RE',
+  P_ASCE75 = 'ASCE75',
+  P_50UNI = '50UNI',
+  P_36UNI = '36UNI',
+  P_UIC_1_10 = 'UIC 1:10',
+}
+
+/**
+ * Indica si la falla está en el riel ALTO o BAJO de una curva.
+ * NO_APLICA es el default y corresponde a tangentes.
+ */
+export enum AltaBaja {
+  NO_APLICA = 'NO_APLICA',
+  ALTA = 'ALTA',
+  BAJA = 'BAJA',
+}
+
+/**
+ * Estado del ciclo de vida de la falla.
+ *
+ * - NO_ATENDIDO: recién creada, sin acción asignada
+ * - PROGRAMADO: hay acción programada pero no ejecutada
+ * - EN_EJECUCION: acción en proceso
+ * - RESUELTO: acción ejecutada y cerrada con éxito
+ * - CANCELADO: se decidió no atender (falsa alarma, no aplica, etc.)
+ * - FALTA_VERIFICAR: ejecutada pero pendiente de inspección final
+ *
+ * Este enum aplica tanto a FallaRiel.estadoActual (desnormalizado)
+ * como a FallaRielAccion.conclusion (estado de cada intervención).
+ */
+export enum EstadoFalla {
+  NO_ATENDIDO = 'NO_ATENDIDO',
+  PROGRAMADO = 'PROGRAMADO',
+  EN_EJECUCION = 'EN_EJECUCION',
+  RESUELTO = 'RESUELTO',
+  CANCELADO = 'CANCELADO',
+  FALTA_VERIFICAR = 'FALTA_VERIFICAR',
+}
+
+/**
+ * Tipo de intervención de mantenimiento sobre una falla de riel.
+ * NO confundir con AccionFalla (soldadura inox).
+ */
+export enum AccionRiel {
+  ESMERILADO = 'ESMERILADO',
+  ESMERILADO_PREVENTIVO = 'ESMERILADO_PREVENTIVO',
+  REEMPLAZO = 'REEMPLAZO',
+  RECARGA_RIEL = 'RECARGA_RIEL',
+  MONITOREO = 'MONITOREO',
+  OTRO = 'OTRO',
 }

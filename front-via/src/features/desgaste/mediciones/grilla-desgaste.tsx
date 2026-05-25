@@ -1,4 +1,4 @@
-import { useState, memo } from 'react';
+import { useRef, memo } from 'react';
 import { Input } from '@/components/ui/input';
 import type {
   GrillaResponse,
@@ -6,35 +6,36 @@ import type {
   CeldaModificadaDto,
 } from '../types/mediciones.types';
 
-// ✅ memo — solo se re-renderiza si sus props cambian
-const CeldaInput = memo(function CeldaInput({
-  valorInicial,
-  placeholder,
-  onCommit,
-}: {
-  valorInicial: number | null;
-  placeholder: string;
-  onCommit: (val: number | null) => void;
-}) {
-  const [local, setLocal] = useState<string>(
-    valorInicial !== null ? String(valorInicial) : '',
-  );
+const CeldaInput = memo(
+  function CeldaInput({
+    valor,
+    placeholder,
+    onCommit,
+  }: {
+    valor: number | null;
+    placeholder: string;
+    onCommit: (val: number | null) => void;
+  }) {
+    const inputRef = useRef<HTMLInputElement>(null);
 
-  return (
-    <Input
-      type="number"
-      step="0.01"
-      value={local}
-      onChange={(e) => setLocal(e.target.value)}
-      onBlur={(e) => {
-        const val = e.target.value === '' ? null : Number(e.target.value);
-        onCommit(val);
-      }}
-      className="w-16 h-6 text-xs px-1"
-      placeholder={placeholder}
-    />
-  );
-});
+    return (
+      <Input
+        ref={inputRef}
+        type="number"
+        step="0.01"
+        defaultValue={valor !== null ? String(valor) : ''}
+        onBlur={() => {
+          const raw = inputRef.current?.value ?? '';
+          const val = raw === '' ? null : Number(raw);
+          onCommit(val);
+        }}
+        className="w-16 h-6 text-xs px-1"
+        placeholder={placeholder}
+      />
+    );
+  },
+  () => true,
+);
 
 interface Props {
   grilla: GrillaResponse;
@@ -42,7 +43,11 @@ interface Props {
   onCeldaChange: (celda: CeldaModificadaDto) => void;
 }
 
-export function GrillaDesgaste({ grilla, celdasModificadas, onCeldaChange }: Props) {
+export function GrillaDesgaste({
+  grilla,
+  celdasModificadas,
+  onCeldaChange,
+}: Props) {
   const { anios, filas } = grilla;
 
   const getValue = (
@@ -56,12 +61,12 @@ export function GrillaDesgaste({ grilla, celdasModificadas, onCeldaChange }: Pro
         c.elementoId === fila.elementoId &&
         c.anio === anio &&
         c.trimestre === trimestre &&
-        c.punto === punto,
+        c.punto === punto.toUpperCase(),
     );
-    if (mod) return mod.valor;
+    if (mod !== undefined) return mod.valor;
     return (
       fila.mediciones[anio]?.[trimestre]?.[
-        punto as keyof typeof fila.mediciones[0][0]
+        punto as keyof (typeof fila.mediciones)[0][0]
       ] ?? null
     );
   };
@@ -85,7 +90,9 @@ export function GrillaDesgaste({ grilla, celdasModificadas, onCeldaChange }: Pro
             ))}
           </tr>
           <tr>
-            <th /><th /><th />
+            <th />
+            <th />
+            <th />
             {anios.map((anio) =>
               [1, 2, 3, 4].map((trim) => (
                 <th
@@ -111,22 +118,30 @@ export function GrillaDesgaste({ grilla, celdasModificadas, onCeldaChange }: Pro
                     className="px-1 py-0.5 border-l"
                   >
                     <div className="flex flex-col gap-0.5">
-                      {(['w1', 'w2', 'w3r', 'w3l'] as const).map((punto) => (
-                        <CeldaInput
-                          key={`${fila.elementoId}-${anio}-${trimestre}-${punto}`}
-                          valorInicial={getValue(fila, anio, trimestre, punto)}
-                          placeholder={punto.toUpperCase()}
-                          onCommit={(val) =>
-                            onCeldaChange({
-                              elementoId: fila.elementoId,
-                              anio,
-                              trimestre,
-                              punto: punto.toUpperCase() as CeldaModificadaDto['punto'],
-                              valor: val,
-                            })
-                          }
-                        />
-                      ))}
+                      {(['w1', 'w2', 'w3r', 'w3l'] as const).map((punto) => {
+                        const valorResuelto = getValue(
+                          fila,
+                          anio,
+                          trimestre,
+                          punto,
+                        );
+                        return (
+                          <CeldaInput
+                            key={`${fila.elementoId}-${anio}-${trimestre}-${punto}-${valorResuelto ?? 'null'}`}
+                            valor={valorResuelto}
+                            placeholder={punto.toUpperCase()}
+                            onCommit={(val) =>
+                              onCeldaChange({
+                                elementoId: fila.elementoId,
+                                anio,
+                                trimestre,
+                                punto: punto.toUpperCase() as CeldaModificadaDto['punto'],
+                                valor: val,
+                              })
+                            }
+                          />
+                        );
+                      })}
                     </div>
                   </td>
                 )),
@@ -137,4 +152,4 @@ export function GrillaDesgaste({ grilla, celdasModificadas, onCeldaChange }: Pro
       </table>
     </div>
   );
-}
+} 

@@ -16,12 +16,6 @@ import {
   TRIMESTRES_VALIDOS,
 } from '../../../../common/constants/desgaste.constants';
 
-/**
- * Una celda modificada = una tupla atómica (elemento, año, trimestre, W, valor).
- *
- * Si valor es null, significa "borrar este W de esta celda lógica"
- * (no borrar la fila entera).
- */
 export class CeldaModificadaDto {
   @IsInt()
   @Min(1)
@@ -32,7 +26,6 @@ export class CeldaModificadaDto {
   @Max(2100)
   anio!: number;
 
-  /** Trimestre 1-4. */
   @IsInt()
   @Min(1)
   @Max(4)
@@ -41,10 +34,6 @@ export class CeldaModificadaDto {
   @IsEnum(PuntoW)
   punto!: PuntoW;
 
-  /**
-   * Valor en mm. null para borrar la celda específica.
-   * Validación de rango: 0 a 50 (cubre 8mm tolerancia con margen).
-   */
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
@@ -52,11 +41,11 @@ export class CeldaModificadaDto {
   valor!: number | null;
 }
 
-/**
- * REQUEST DTO para guardar cambios.
- * Frontend manda SOLO las celdas que el usuario modificó.
- */
 export class GuardarCambiosDto {
+  @IsInt()
+  @Min(1)
+  escenarioId!: number;
+
   @IsArray()
   @ArrayMinSize(1, { message: 'Debe enviar al menos una celda modificada' })
   @ValidateNested({ each: true })

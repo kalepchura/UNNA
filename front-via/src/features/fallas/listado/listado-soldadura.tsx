@@ -26,6 +26,10 @@ interface ListadoSoldaduraProps {
   isLoading: boolean;
   onEliminar: (id: number) => void;
   eliminandoId?: number | null;
+  /** Si se provee, "Ver" abre via callback en vez de navegar. */
+  onVer?: (id: number) => void;
+  /** Si se provee, "Editar" abre via callback en vez de navegar. */
+  onEditar?: (id: number) => void;
 }
 
 export function ListadoSoldadura({
@@ -33,6 +37,8 @@ export function ListadoSoldadura({
   isLoading,
   onEliminar,
   eliminandoId,
+  onVer,
+  onEditar,
 }: ListadoSoldaduraProps) {
   const [fallaIdGaleria, setFallaIdGaleria] = useState<number | null>(null);
 
@@ -119,16 +125,38 @@ export function ListadoSoldadura({
                 </td>
                 <td role="cell" className="p-2 text-right">
                   <div className="flex gap-1 justify-end">
-                    <Button asChild variant="outline" size="sm">
-                      <Link to={`/fallas/soldadura/${f.id}`} aria-label={`Ver falla ${f.id}`}>
+                    {onVer ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onVer(f.id)}
+                        aria-label={`Ver falla ${f.id}`}
+                      >
                         Ver
-                      </Link>
-                    </Button>
-                    <Button asChild variant="outline" size="sm">
-                      <Link to={`/fallas/soldadura/${f.id}/editar`} aria-label={`Editar falla ${f.id}`}>
+                      </Button>
+                    ) : (
+                      <Button asChild variant="outline" size="sm">
+                        <Link to={`/fallas/soldadura/${f.id}`} aria-label={`Ver falla ${f.id}`}>
+                          Ver
+                        </Link>
+                      </Button>
+                    )}
+                    {onEditar ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onEditar(f.id)}
+                        aria-label={`Editar falla ${f.id}`}
+                      >
                         Editar
-                      </Link>
-                    </Button>
+                      </Button>
+                    ) : (
+                      <Button asChild variant="outline" size="sm">
+                        <Link to={`/fallas/soldadura/${f.id}/editar`} aria-label={`Editar falla ${f.id}`}>
+                          Editar
+                        </Link>
+                      </Button>
+                    )}
                     <Button
                       variant="destructive"
                       size="sm"

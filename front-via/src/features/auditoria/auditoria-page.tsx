@@ -1,6 +1,11 @@
 import { useState } from 'react';
+import { History, Trash2 } from 'lucide-react';
+
 import { useApiQuery } from '@/hooks/use-api-query';
 import { auditoriaApi } from '@/lib/api/auditoria.api';
+
+import { PageHeader } from '@/components/layout/page-header';
+
 import { FiltrosAuditoria } from './filtros-auditoria';
 import { TablaAuditoria } from './tabla-auditoria';
 import { ResumenEliminadosCards } from './resumen-eliminados-cards';
@@ -12,10 +17,11 @@ export function AuditoriaPage() {
     page: 1,
     limit: 50,
   });
-  const [filtrosAplicados, setFiltrosAplicados] = useState<FiltrarAuditoriaFiltros>({
-    page: 1,
-    limit: 50,
-  });
+  const [filtrosAplicados, setFiltrosAplicados] =
+    useState<FiltrarAuditoriaFiltros>({
+      page: 1,
+      limit: 50,
+    });
 
   const { data: logData, isLoading: logLoading } = useApiQuery({
     queryKey: ['auditoria', 'log', filtrosAplicados],
@@ -37,24 +43,26 @@ export function AuditoriaPage() {
   };
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold">Auditoría</h1>
-        <p className="text-sm text-muted-foreground">
-          Historial de operaciones y registros eliminados
-        </p>
-      </div>
+    <div className="flex flex-col gap-8">
+      <PageHeader
+        title="Auditoría"
+        subtitle="Historial de operaciones y registros eliminados"
+        breadcrumb={[{ label: 'Administración' }, { label: 'Auditoría' }]}
+      />
 
       {/* SECCIÓN 1: Registros eliminados */}
-      <section className="space-y-4">
-        <h2 className="text-xl font-semibold">Registros eliminados</h2>
-        <ResumenEliminadosCards data={resumenData ?? null} isLoading={resumenLoading} />
+      <section className="flex flex-col gap-4">
+        <SectionLabel icon={Trash2}>Registros eliminados</SectionLabel>
+        <ResumenEliminadosCards
+          data={resumenData ?? null}
+          isLoading={resumenLoading}
+        />
         <ListadoEliminados />
       </section>
 
       {/* SECCIÓN 2: Historial de operaciones */}
-      <section className="space-y-4">
-        <h2 className="text-xl font-semibold">Historial de operaciones</h2>
+      <section className="flex flex-col gap-4">
+        <SectionLabel icon={History}>Historial de operaciones</SectionLabel>
         <FiltrosAuditoria
           filtros={filtros}
           onChange={setFiltros}
@@ -67,6 +75,25 @@ export function AuditoriaPage() {
           onPageChange={handlePageChange}
         />
       </section>
+    </div>
+  );
+}
+
+// ── Section label (encabezado de sub-sección dentro de una página) ────────────
+
+function SectionLabel({
+  icon: Icon,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-2 border-b border-border pb-3">
+      <Icon className="h-4 w-4 text-muted-foreground" />
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground">
+        {children}
+      </h2>
     </div>
   );
 }

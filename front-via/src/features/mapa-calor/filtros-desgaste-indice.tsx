@@ -1,6 +1,4 @@
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -8,7 +6,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  FiltersToolbar,
+  FiltersGrid,
+  FilterField,
+  DateInput,
+} from '@/components/shared/filters-toolbar';
 import { useEscenariosOptions } from '@/hooks/use-escenarios-options';
+import { cn } from '@/lib/utils';
 import type { MapaDesgasteIndiceFiltros } from './types/mapa-calor.types';
 
 interface Props {
@@ -20,133 +25,184 @@ interface Props {
 
 const SIN_FILTRO = '__all__';
 
-export function FiltrosDesgasteIndice({ filtros, onChange, onAplicar, isLoading }: Props) {
+export function FiltrosDesgasteIndice({
+  filtros,
+  onChange,
+  onAplicar,
+  isLoading,
+}: Props) {
   const { options: escenariosOptions } = useEscenariosOptions();
 
   return (
-    <Card>
-      <CardContent className="pt-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Bloque A */}
-          <div className="space-y-4 rounded-md border p-3">
-            <h3 className="font-medium text-sm">Parámetro A</h3>
-            <div>
-              <Label className="text-sm">Escenario A</Label>
-              <Select
-                value={filtros.escenarioIdA !== undefined ? String(filtros.escenarioIdA) : SIN_FILTRO}
-                onValueChange={(value) =>
-                  onChange({
-                    ...filtros,
-                    escenarioIdA: value === SIN_FILTRO ? undefined : Number(value),
-                  })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="REAL (por defecto)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={SIN_FILTRO}>Por defecto (REAL)</SelectItem>
-                  {escenariosOptions.map((op) => (
-                    <SelectItem key={op.value} value={op.value}>{op.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-sm">Punto W A</Label>
-              <Select
-                value={filtros.puntoWA ?? SIN_FILTRO}
-                onValueChange={(value) =>
-                  onChange({
-                    ...filtros,
-                    puntoWA: value === SIN_FILTRO ? undefined : (value as any),
-                  })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="W1 (por defecto)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={SIN_FILTRO}>Por defecto (W1)</SelectItem>
-                  <SelectItem value="W1">W1</SelectItem>
-                  <SelectItem value="W2">W2</SelectItem>
-                  <SelectItem value="W3R">W3R</SelectItem>
-                  <SelectItem value="W3L">W3L</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+    <FiltersToolbar
+      title="Filtros de la capa"
+      description="Configura los parámetros A y B para calcular el índice de desgaste."
+      primaryAction={
+        <Button onClick={onAplicar} disabled={isLoading} size="sm">
+          {isLoading ? 'Cargando…' : 'Actualizar mapa'}
+        </Button>
+      }
+    >
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ParametroBlock label="Parámetro A" accent="info">
+          <FilterField label="Escenario A">
+            <Select
+              value={
+                filtros.escenarioIdA !== undefined
+                  ? String(filtros.escenarioIdA)
+                  : SIN_FILTRO
+              }
+              onValueChange={(value) =>
+                onChange({
+                  ...filtros,
+                  escenarioIdA:
+                    value === SIN_FILTRO ? undefined : Number(value),
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="REAL (por defecto)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={SIN_FILTRO}>
+                  Por defecto (REAL)
+                </SelectItem>
+                {escenariosOptions.map((op) => (
+                  <SelectItem key={op.value} value={op.value}>
+                    {op.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
 
-          {/* Bloque B */}
-          <div className="space-y-4 rounded-md border p-3">
-            <h3 className="font-medium text-sm">Parámetro B</h3>
-            <div>
-              <Label className="text-sm">Escenario B</Label>
-              <Select
-                value={filtros.escenarioIdB !== undefined ? String(filtros.escenarioIdB) : SIN_FILTRO}
-                onValueChange={(value) =>
-                  onChange({
-                    ...filtros,
-                    escenarioIdB: value === SIN_FILTRO ? undefined : Number(value),
-                  })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="REAL (por defecto)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={SIN_FILTRO}>Por defecto (REAL)</SelectItem>
-                  {escenariosOptions.map((op) => (
-                    <SelectItem key={op.value} value={op.value}>{op.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-sm">Punto W B</Label>
-              <Select
-                value={filtros.puntoWB ?? SIN_FILTRO}
-                onValueChange={(value) =>
-                  onChange({
-                    ...filtros,
-                    puntoWB: value === SIN_FILTRO ? undefined : (value as any),
-                  })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="W2 (por defecto)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={SIN_FILTRO}>Por defecto (W2)</SelectItem>
-                  <SelectItem value="W1">W1</SelectItem>
-                  <SelectItem value="W2">W2</SelectItem>
-                  <SelectItem value="W3R">W3R</SelectItem>
-                  <SelectItem value="W3L">W3L</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
+          <FilterField label="Punto W A">
+            <Select
+              value={filtros.puntoWA ?? SIN_FILTRO}
+              onValueChange={(value) =>
+                onChange({
+                  ...filtros,
+                  puntoWA:
+                    value === SIN_FILTRO ? undefined : (value as any),
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="W1 (por defecto)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={SIN_FILTRO}>Por defecto (W1)</SelectItem>
+                <SelectItem value="W1">W1</SelectItem>
+                <SelectItem value="W2">W2</SelectItem>
+                <SelectItem value="W3R">W3R</SelectItem>
+                <SelectItem value="W3L">W3L</SelectItem>
+              </SelectContent>
+            </Select>
+          </FilterField>
+        </ParametroBlock>
 
-        {/* Fecha de corte común */}
-        <div className="mt-4">
-          <Label className="text-sm">Fecha de corte</Label>
-          <input
-            type="date"
-            value={filtros.fechaCorte ?? ''}
-            onChange={(e) =>
-              onChange({ ...filtros, fechaCorte: e.target.value || undefined })
-            }
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-          />
-        </div>
+        <ParametroBlock label="Parámetro B" accent="warning">
+          <FilterField label="Escenario B">
+            <Select
+              value={
+                filtros.escenarioIdB !== undefined
+                  ? String(filtros.escenarioIdB)
+                  : SIN_FILTRO
+              }
+              onValueChange={(value) =>
+                onChange({
+                  ...filtros,
+                  escenarioIdB:
+                    value === SIN_FILTRO ? undefined : Number(value),
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="REAL (por defecto)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={SIN_FILTRO}>
+                  Por defecto (REAL)
+                </SelectItem>
+                {escenariosOptions.map((op) => (
+                  <SelectItem key={op.value} value={op.value}>
+                    {op.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
 
-        <div className="mt-4 flex justify-end">
-          <Button onClick={onAplicar} disabled={isLoading}>
-            {isLoading ? 'Cargando...' : 'Actualizar mapa'}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+          <FilterField label="Punto W B">
+            <Select
+              value={filtros.puntoWB ?? SIN_FILTRO}
+              onValueChange={(value) =>
+                onChange({
+                  ...filtros,
+                  puntoWB:
+                    value === SIN_FILTRO ? undefined : (value as any),
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="W2 (por defecto)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={SIN_FILTRO}>Por defecto (W2)</SelectItem>
+                <SelectItem value="W1">W1</SelectItem>
+                <SelectItem value="W2">W2</SelectItem>
+                <SelectItem value="W3R">W3R</SelectItem>
+                <SelectItem value="W3L">W3L</SelectItem>
+              </SelectContent>
+            </Select>
+          </FilterField>
+        </ParametroBlock>
+      </div>
+
+      <div className="mt-4">
+        <FiltersGrid columns={3}>
+          <FilterField label="Fecha de corte">
+            <DateInput
+              value={filtros.fechaCorte ?? ''}
+              onChange={(e) =>
+                onChange({
+                  ...filtros,
+                  fechaCorte: e.target.value || undefined,
+                })
+              }
+            />
+          </FilterField>
+        </FiltersGrid>
+      </div>
+    </FiltersToolbar>
+  );
+}
+
+// ── ParametroBlock — small visual grouping for A vs B ────────────────────────
+
+function ParametroBlock({
+  label,
+  accent,
+  children,
+}: {
+  label: string;
+  accent: 'info' | 'warning';
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-muted/20 p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <span
+          className={cn(
+            'h-1.5 w-1.5 rounded-full',
+            accent === 'info' ? 'bg-info' : 'bg-warning',
+          )}
+        />
+        <h4 className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-foreground">
+          {label}
+        </h4>
+      </div>
+      <div className="grid gap-3">{children}</div>
+    </div>
   );
 }

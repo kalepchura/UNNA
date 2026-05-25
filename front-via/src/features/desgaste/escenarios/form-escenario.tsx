@@ -1,15 +1,19 @@
 import { useState } from 'react';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetBody,
+  SheetFooter,
+  SheetTitle,
+  SheetDescription,
+} from '@/components/ui/sheet';
+
 import { useApiMutation } from '@/hooks/use-api-mutation';
 import { desgasteApi } from '@/lib/api/desgaste.api';
 import type { EscenarioResponse } from '../types/escenarios.types';
@@ -43,50 +47,58 @@ export function FormEscenario({ escenario, onClose, onSuccess }: Props) {
     else crearMut.mutate(undefined);
   };
 
-  // ✅ isPending, no isLoading
   const isPending = crearMut.isPending || actualizarMut.isPending;
+  const formId = 'form-escenario';
 
   return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
+    <Sheet open onOpenChange={(open) => !open && onClose()}>
+      <SheetContent side="right" size="md">
+        <SheetHeader>
+          <SheetTitle>
             {escenario ? 'Editar escenario' : 'Nuevo escenario'}
-          </DialogTitle>
-          {/* ✅ Requerido por Radix para accesibilidad */}
-          <DialogDescription>
+          </SheetTitle>
+          <SheetDescription>
             {escenario
               ? 'Modifique los datos del escenario de tráfico.'
               : 'Complete los datos para crear un nuevo escenario de tráfico.'}
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label>Nombre</Label>
-            <Input
-              value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
-              required
-              maxLength={100}
-            />
-          </div>
-          <div>
-            <Label>Descripción (opcional)</Label>
-            <Textarea
-              value={descripcion}
-              onChange={(e) => setDescripcion(e.target.value)}
-            />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={isPending}>
-              {isPending ? 'Guardando...' : 'Guardar'}
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+          </SheetDescription>
+        </SheetHeader>
+
+        <SheetBody>
+          <form id={formId} onSubmit={handleSubmit} className="space-y-5">
+            <div className="space-y-1.5">
+              <Label htmlFor="esc-nombre">Nombre</Label>
+              <Input
+                id="esc-nombre"
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                required
+                maxLength={100}
+                placeholder="Ej: Escenario base 2025"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="esc-descripcion">Descripción (opcional)</Label>
+              <Textarea
+                id="esc-descripcion"
+                value={descripcion}
+                onChange={(e) => setDescripcion(e.target.value)}
+                placeholder="Notas o supuestos del escenario…"
+                rows={4}
+              />
+            </div>
+          </form>
+        </SheetBody>
+
+        <SheetFooter>
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button type="submit" form={formId} disabled={isPending}>
+            {isPending ? 'Guardando…' : 'Guardar'}
+          </Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }

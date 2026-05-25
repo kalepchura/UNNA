@@ -1,3 +1,25 @@
+/**
+ * =============================================================================
+ * UNNA · DESIGN SYSTEM · FASE 2
+ *
+ * Sistema de diseño industrial/ferroviario premium.
+ * Tokens canónicos para TODA la aplicación.
+ *
+ * Filosofía:
+ * - Neutrales cálidos (no grises planos) — sensación de papel industrial.
+ * - Acento sobrio (teal industrial) — no decorativo, solo para estado/foco.
+ * - Status semántico (success/warning/info/danger) con variantes suaves.
+ * - Sidebar oscuro graphite — mantenido del diseño existente.
+ * - Tipografía Geist — moderna, técnica, alta legibilidad.
+ *
+ * Reglas de uso:
+ * - Usa SIEMPRE los tokens (bg-card, text-foreground), no colores literales.
+ * - Para superficies elevadas: bg-card border border-border shadow-sm.
+ * - Para estados: bg-success-soft text-success-soft-foreground.
+ * - Para acento: text-brand / bg-brand (úsalo escasamente).
+ * =============================================================================
+ */
+
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
@@ -6,219 +28,320 @@
 @tailwind components;
 @tailwind utilities;
 
-/**
- * =========================================================
- * TEMA GLOBAL
- * =========================================================
- */
-
 @layer base {
 
   :root {
 
-    /* =====================================================
-       BASE
-    ===================================================== */
+    /* ========================================================================
+       FOUNDATION SURFACES
+       ──────────────────────────────────────────────────────────────────────── */
 
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
+    /** Fondo de la app — warm off-white, papel industrial. */
+    --background: 30 12% 97%;
 
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
+    /** Texto principal — graphite profundo, técnico. */
+    --foreground: 220 16% 13%;
 
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
+    /** Superficie elevada (cards, paneles) — blanco puro para contraste. */
+    --card: 0 0% 100%;
+    --card-foreground: 220 16% 13%;
 
-    /* =====================================================
-       PRIMARY
-    ===================================================== */
+    /** Popovers, dropdowns. */
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 16% 13%;
 
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
+    /* ========================================================================
+       INTERACTIVE COLORS
+       ──────────────────────────────────────────────────────────────────────── */
 
-    /* =====================================================
-       SECONDARY
-    ===================================================== */
+    /** Primario — solid graphite (botones primarios, tab activo). */
+    --primary: 220 16% 13%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
+    /** Secundario — soft slate. */
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 220 16% 18%;
 
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
+    /** Muted — fondos sutiles, headers de tabla. */
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
 
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
+    /** shadcn "accent" — hover bg de items, NO es el brand accent. */
+    --accent: 220 14% 94%;
+    --accent-foreground: 220 16% 18%;
 
-    /* =====================================================
-       STATUS
-    ===================================================== */
+    /* ========================================================================
+       BRAND ACCENT — sober industrial teal
+       Usar escasamente: focus rings, links, sidebar active, indicadores.
+       ──────────────────────────────────────────────────────────────────────── */
 
-    --destructive: oklch(0.577 0.245 27.325);
-    --destructive-foreground: 210 40% 98%;
+    --brand: 188 78% 30%;
+    --brand-foreground: 0 0% 100%;
+    --brand-soft: 188 70% 95%;
+    --brand-soft-foreground: 188 78% 22%;
 
-    /* =====================================================
-       BORDERS
-    ===================================================== */
+    /* ========================================================================
+       STATUS — single-tint pills + soft variants
+       ──────────────────────────────────────────────────────────────────────── */
 
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
+    --success: 142 70% 32%;
+    --success-foreground: 0 0% 100%;
+    --success-soft: 142 50% 95%;
+    --success-soft-foreground: 142 70% 22%;
 
-    --radius: 0.75rem;
+    --warning: 32 90% 40%;
+    --warning-foreground: 0 0% 100%;
+    --warning-soft: 32 80% 95%;
+    --warning-soft-foreground: 32 85% 28%;
 
-    /* =====================================================
-       CHARTS
-    ===================================================== */
+    --info: 215 60% 38%;
+    --info-foreground: 0 0% 100%;
+    --info-soft: 215 70% 95%;
+    --info-soft-foreground: 215 75% 28%;
 
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-soft: 0 70% 96%;
+    --destructive-soft-foreground: 0 72% 38%;
 
-    /* =====================================================
-       SIDEBAR
-    ===================================================== */
+    /* ========================================================================
+       BORDERS & INPUTS
+       ──────────────────────────────────────────────────────────────────────── */
 
-    --sidebar: #07122b;
+    --border: 220 13% 91%;
+    --border-strong: 220 13% 82%;
+    --input: 220 13% 91%;
+    --ring: 220 13% 60%;
 
-    --sidebar-foreground: oklch(0.985 0 0);
+    /* ========================================================================
+       GEOMETRY
+       ──────────────────────────────────────────────────────────────────────── */
 
-    --sidebar-primary: #10b981;
+    --radius: 0.625rem;
 
-    --sidebar-primary-foreground: white;
+    /* ========================================================================
+       SIDEBAR — dark navy industrial (mantenemos #07122b)
+       ──────────────────────────────────────────────────────────────────────── */
 
-    --sidebar-accent: rgba(255,255,255,0.06);
+    --sidebar: 222 75% 10%;
+    --sidebar-foreground: 220 15% 88%;
+    --sidebar-primary: 188 78% 50%;
+    --sidebar-primary-foreground: 222 75% 10%;
+    --sidebar-accent: 220 30% 14%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 220 30% 18%;
+    --sidebar-ring: 188 78% 50%;
 
-    --sidebar-accent-foreground: white;
+    /* ========================================================================
+       CHARTS — industrial palette (teal/steel/amber/moss/dusty)
+       ──────────────────────────────────────────────────────────────────────── */
 
-    --sidebar-border: rgba(255,255,255,0.08);
-
-    --sidebar-ring: rgba(255,255,255,0.2);
+    --chart-1: 188 78% 35%;
+    --chart-2: 215 60% 45%;
+    --chart-3: 32 85% 45%;
+    --chart-4: 142 50% 38%;
+    --chart-5: 280 30% 45%;
   }
 
-  /**
-   * =======================================================
-   * TYPOGRAPHY
-   * =======================================================
-   */
+  /* =========================================================================
+     TYPOGRAPHY
+     ───────────────────────────────────────────────────────────────────────── */
 
   .theme {
-    --font-heading: var(--font-sans);
+    --font-heading: 'Geist Variable', sans-serif;
     --font-sans: 'Geist Variable', sans-serif;
   }
 
-  /**
-   * =======================================================
-   * DARK
-   * (no usado actualmente)
-   * =======================================================
-   */
+  /* =========================================================================
+     DARK MODE (definida pero no activa por defecto)
+     ───────────────────────────────────────────────────────────────────────── */
 
   .dark {
+    --background: 220 18% 9%;
+    --foreground: 220 14% 92%;
 
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
+    --card: 220 18% 11%;
+    --card-foreground: 220 14% 92%;
 
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
+    --popover: 220 18% 11%;
+    --popover-foreground: 220 14% 92%;
 
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
+    --primary: 220 14% 92%;
+    --primary-foreground: 220 18% 11%;
 
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
+    --secondary: 220 18% 16%;
+    --secondary-foreground: 220 14% 92%;
 
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
+    --muted: 220 18% 16%;
+    --muted-foreground: 220 10% 60%;
 
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
+    --accent: 220 18% 18%;
+    --accent-foreground: 220 14% 92%;
 
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
+    --brand: 188 78% 55%;
+    --brand-foreground: 220 18% 9%;
+    --brand-soft: 188 78% 15%;
+    --brand-soft-foreground: 188 78% 75%;
 
-    --destructive: oklch(0.704 0.191 22.216);
+    --success: 142 60% 50%;
+    --success-foreground: 220 18% 9%;
+    --success-soft: 142 50% 14%;
+    --success-soft-foreground: 142 60% 70%;
 
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
+    --warning: 32 90% 60%;
+    --warning-foreground: 220 18% 9%;
+    --warning-soft: 32 70% 14%;
+    --warning-soft-foreground: 32 90% 75%;
 
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
+    --info: 215 75% 60%;
+    --info-foreground: 220 18% 9%;
+    --info-soft: 215 60% 14%;
+    --info-soft-foreground: 215 75% 75%;
 
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
+    --destructive: 0 72% 60%;
+    --destructive-foreground: 220 18% 9%;
+    --destructive-soft: 0 65% 14%;
+    --destructive-soft-foreground: 0 72% 75%;
 
-    --sidebar-primary: oklch(0.488 0.243 264.376);
+    --border: 220 18% 18%;
+    --border-strong: 220 18% 24%;
+    --input: 220 18% 18%;
+    --ring: 220 14% 60%;
 
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-
-    --sidebar-accent: oklch(0.269 0 0);
-
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-
-    --sidebar-border: oklch(1 0 0 / 10%);
-
-    --sidebar-ring: oklch(0.556 0 0);
+    --chart-1: 188 78% 55%;
+    --chart-2: 215 70% 60%;
+    --chart-3: 32 90% 60%;
+    --chart-4: 142 60% 50%;
+    --chart-5: 280 40% 60%;
   }
 
-  /**
-   * =======================================================
-   * BASE
-   * =======================================================
-   */
+  /* =========================================================================
+     BASE
+     ───────────────────────────────────────────────────────────────────────── */
 
   * {
     @apply border-border outline-ring/50;
   }
 
   html {
-    @apply font-sans;
+    @apply font-sans antialiased;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-background text-foreground;
+    font-family: 'Geist Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-feature-settings: "cv11", "ss01";
+  }
 
-    font-family:
-      -apple-system,
-      BlinkMacSystemFont,
-      'Segoe UI',
-      Roboto,
-      sans-serif;
+  /* Headings — Geist with tight tracking */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight text-foreground;
+    font-feature-settings: "ss01", "ss03";
+  }
+
+  /* Numbers — tabular by default */
+  .tabular-nums,
+  [data-tabular="true"] {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  /* Mono — for codes, IDs, technical identifiers */
+  code, kbd, samp, .font-mono {
+    font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-feature-settings: "ss01";
   }
 }
 
-/**
- * =========================================================
- * SCROLLBAR ENTERPRISE
- * =========================================================
- */
+/* ===========================================================================
+   SCROLLBARS — subtle, industrial
+   ─────────────────────────────────────────────────────────────────────────── */
 
 * {
   scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border-strong)) transparent;
+}
+
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: hsl(var(--border-strong));
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+
+/* Sidebar scrollbar (oscuro) */
+.sidebar-scope *,
+[data-scope="sidebar"] * {
   scrollbar-color: rgba(255,255,255,0.14) transparent;
 }
-
-/* Chrome / Edge / Brave */
-
-*::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+[data-scope="sidebar"] *::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.14);
+}
+[data-scope="sidebar"] *::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.28);
 }
 
-*::-webkit-scrollbar-track {
-  background: transparent;
+/* ===========================================================================
+   UTILITIES — patrones recurrentes
+   ─────────────────────────────────────────────────────────────────────────── */
+
+@layer utilities {
+
+  /* Texto técnico — para códigos, identificadores, métricas */
+  .text-tech {
+    @apply font-mono text-[0.78em] tracking-tight;
+    font-feature-settings: "ss01", "ss03";
+  }
+
+  /* "Eyebrow" — labels pequeños sobre títulos / encima de números */
+  .eyebrow {
+    @apply text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground;
+  }
+
+  /* Linea separadora con texto centrado */
+  .divider-label {
+    @apply flex items-center gap-3 text-xs text-muted-foreground;
+  }
+  .divider-label::before,
+  .divider-label::after {
+    @apply h-px flex-1 bg-border content-[''];
+  }
+
+  /* Card surface canónico — usar como base para superficies elevadas */
+  .surface {
+    @apply rounded-xl border border-border bg-card shadow-sm;
+  }
+
+  /* Hover ligero para filas / items */
+  .row-hover {
+    @apply transition-colors hover:bg-muted/40;
+  }
+
+  /* Animación de entrada sutil */
+  .anim-fade-in {
+    animation: fadeIn 220ms ease-out;
+  }
+  .anim-slide-up {
+    animation: slideUp 280ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
 }
 
-*::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.12);
-  border-radius: 999px;
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-*::-webkit-scrollbar-thumb:hover {
-  background: rgba(255,255,255,0.24);
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }

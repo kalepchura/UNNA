@@ -1,5 +1,6 @@
-import { Skeleton } from '@/components/ui/skeleton';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { AlertOctagon, Activity, ClipboardX } from 'lucide-react';
+
+import { StatCard, type StatTone } from '@/components/shared/stat-card';
 import { KpisDesgasteResponse } from '../types/kpis-desgaste.types';
 
 interface Props {
@@ -7,99 +8,81 @@ interface Props {
   isLoading: boolean;
 }
 
+/**
+ * KPIs del módulo de Desgaste — usa <StatCard/> canónico.
+ *
+ * - Zona roja → tone destructive
+ * - Mayor desgaste → tone según data.color (verde/amarillo/rojo)
+ * - Sin medición → tone warning
+ */
 export function KpisDesgaste({ data, isLoading }: Props) {
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[1, 2, 3].map((i) => (
-          <Card key={i}>
-            <CardHeader className="pb-2">
-              <Skeleton className="h-5 w-32" />
-            </CardHeader>
-            <CardContent>
-              <Skeleton className="h-8 w-20" />
-            </CardContent>
-          </Card>
-        ))}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <StatCard label="" value="" loading />
+        <StatCard label="" value="" loading />
+        <StatCard label="" value="" loading />
       </div>
     );
   }
 
   if (!data) return null;
 
-  const getColorClass = (color: string) => {
-    switch (color) {
-      case 'VERDE': return 'text-green-600';
-      case 'AMARILLO': return 'text-yellow-600';
-      case 'ROJO': return 'text-red-600';
-      case 'GRIS': return 'text-gray-400';
-      default: return 'text-gray-600';
-    }
-  };
-
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      {/* KPI 1 - Elementos en zona roja */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            Elementos en zona roja
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className={`text-3xl font-bold ${getColorClass(data.zonaRoja.color)}`}>
-            {data.zonaRoja.cantidad}
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Último trimestre
-          </p>
-        </CardContent>
-      </Card>
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {/* KPI 1 — Elementos en zona roja */}
+      <StatCard
+        label="Elementos en zona roja"
+        value={data.zonaRoja.cantidad}
+        unit="elem."
+        helper="Último trimestre"
+        icon={AlertOctagon}
+        tone={mapColorToTone(data.zonaRoja.color)}
+      />
 
-      {/* KPI 2 - Mayor desgaste actual */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            Mayor desgaste
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {data.mayorDesgaste.codigoElemento !== null ? (
-            <>
-              <div className={`text-3xl font-bold ${getColorClass(data.mayorDesgaste.color)}`}>
-                {data.mayorDesgaste.valorMm} mm
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Elemento {data.mayorDesgaste.codigoElemento} – {data.mayorDesgaste.punto}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Tramo {data.mayorDesgaste.tramoCodigo}, {data.mayorDesgaste.trimestre}T{data.mayorDesgaste.anio}
-              </p>
-            </>
-          ) : (
-            <div className="text-3xl font-bold text-gray-400">--</div>
-          )}
-        </CardContent>
-      </Card>
+      {/* KPI 2 — Mayor desgaste actual */}
+      <StatCard
+        label="Mayor desgaste"
+        value={
+          data.mayorDesgaste.codigoElemento !== null
+            ? data.mayorDesgaste.valorMm
+            : '—'
+        }
+        unit={data.mayorDesgaste.codigoElemento !== null ? 'mm' : undefined}
+        helper={
+          data.mayorDesgaste.codigoElemento !== null
+            ? `E${data.mayorDesgaste.codigoElemento} · ${data.mayorDesgaste.punto} · Tramo ${data.mayorDesgaste.tramoCodigo} · ${data.mayorDesgaste.trimestre}T${data.mayorDesgaste.anio}`
+            : undefined
+        }
+        icon={Activity}
+        tone={mapColorToTone(data.mayorDesgaste.color)}
+      />
 
-      {/* KPI 3 - Elementos sin medición */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            Sin medición en {data.sinMedicionUltimoAnio.anioReferencia || '...'}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className={`text-3xl font-bold ${getColorClass(data.sinMedicionUltimoAnio.color)}`}>
-            {data.sinMedicionUltimoAnio.cantidad}
-          </div>
-          {data.sinMedicionUltimoAnio.primerosElementos.length > 0 && (
-            <p className="text-xs text-muted-foreground mt-1 truncate">
-              {data.sinMedicionUltimoAnio.primerosElementos.map(e => `E${e.codigoElemento}`).join(', ')}
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      {/* KPI 3 — Elementos sin medición */}
+      <StatCard
+        label={`Sin medición en ${data.sinMedicionUltimoAnio.anioReferencia || '…'}`}
+        value={data.sinMedicionUltimoAnio.cantidad}
+        unit="elem."
+        helper={
+          data.sinMedicionUltimoAnio.primerosElementos.length > 0
+            ? data.sinMedicionUltimoAnio.primerosElementos
+                .map((e) => `E${e.codigoElemento}`)
+                .join(', ')
+            : undefined
+        }
+        icon={ClipboardX}
+        tone={mapColorToTone(data.sinMedicionUltimoAnio.color)}
+      />
     </div>
   );
+}
+
+function mapColorToTone(color: string): StatTone {
+  switch (color) {
+    case 'VERDE':    return 'success';
+    case 'AMARILLO': return 'warning';
+    case 'ROJO':     return 'destructive';
+    case 'GRIS':     return 'neutral';
+    default:         return 'neutral';
+  }
 }

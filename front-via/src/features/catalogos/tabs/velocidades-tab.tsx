@@ -1,38 +1,64 @@
 // frontend/src/features/catalogos/tabs/velocidades-tab.tsx
 
 import { useState, useMemo } from 'react';
+import type { ColumnDef } from '@tanstack/react-table';
+import { ChevronLeft, ChevronRight, Gauge } from 'lucide-react';
+
 import { useApiQuery } from '@/hooks/use-api-query';
 import { catalogosApi, type Velocidad } from '@/lib/api/catalogos.api';
 import { queryKeys } from '@/lib/query-keys';
-import { DataTable } from '@/components/tables/data-table';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { formatearEntero } from '@/lib/format';
-import type { ColumnDef } from '@tanstack/react-table';
+
+import { DataTable } from '@/components/tables/data-table';
+import {
+  DataCard,
+  DataToolbar,
+  DataPagination,
+} from '@/components/shared/data-card';
+import { SearchInput } from '@/components/shared/search-input';
+import { Button } from '@/components/ui/button';
 
 const columnas: ColumnDef<Velocidad>[] = [
   {
     accessorKey: 'velocidadKmh',
     header: 'Velocidad',
     cell: ({ row }) => (
-      <span className="font-medium">{formatearEntero(row.original.velocidadKmh)} km/h</span>
+      <span className="inline-flex items-center gap-2 font-medium text-foreground">
+        <Gauge className="h-3.5 w-3.5 text-brand" />
+        <span className="tabular-nums">{formatearEntero(row.original.velocidadKmh)}</span>
+        <span className="text-xs font-normal text-muted-foreground">km/h</span>
+      </span>
     ),
   },
   {
     accessorKey: 'progresivaInicio',
-    header: 'Progresiva Inicio',
-    cell: ({ row }) => `${formatearEntero(row.original.progresivaInicio)} m`,
+    header: () => <span className="block text-right">Prog. Inicio</span>,
+    cell: ({ row }) => (
+      <span className="block text-right tabular-nums text-muted-foreground">
+        {formatearEntero(row.original.progresivaInicio)} m
+      </span>
+    ),
   },
   {
     accessorKey: 'progresivaFin',
-    header: 'Progresiva Fin',
-    cell: ({ row }) => `${formatearEntero(row.original.progresivaFin)} m`,
+    header: () => <span className="block text-right">Prog. Fin</span>,
+    cell: ({ row }) => (
+      <span className="block text-right tabular-nums text-muted-foreground">
+        {formatearEntero(row.original.progresivaFin)} m
+      </span>
+    ),
   },
   {
     id: 'longitud',
-    header: 'Longitud',
-    cell: ({ row }) => `${formatearEntero(row.original.progresivaFin - row.original.progresivaInicio)} m`,
+    header: () => <span className="block text-right">Longitud</span>,
+    cell: ({ row }) => (
+      <span className="block text-right tabular-nums font-medium text-foreground">
+        {formatearEntero(
+          row.original.progresivaFin - row.original.progresivaInicio,
+        )}{' '}
+        m
+      </span>
+    ),
   },
 ];
 
@@ -41,69 +67,94 @@ export function VelocidadesTab() {
   const [filtro, setFiltro] = useState('');
   const itemsPorPagina = 20;
 
-  // ✅ Una sola llamada
   const { data: todos, isLoading } = useApiQuery({
     queryKey: queryKeys.catalogos.velocidadesTabla,
     queryFn: () => catalogosApi.velocidades.listarParaTabla({ limit: 1000 }),
   });
 
-  // ✅ Filtro en frontend
   const datosFiltrados = useMemo(() => {
     if (!todos) return [];
     if (!filtro) return todos;
-    const busqueda = filtro.toLowerCase();
-    return todos.filter(v => 
-      String(v.velocidadKmh).includes(busqueda)
-    );
+    return todos.filter((v) => String(v.velocidadKmh).includes(filtro));
   }, [todos, filtro]);
 
-  // ✅ Paginación en frontend
-  const totalPaginas = Math.ceil(datosFiltrados.length / itemsPorPagina);
+  const totalPaginas = Math.max(
+    1,
+    Math.ceil(datosFiltrados.length / itemsPorPagina),
+  );
   const inicio = (pagina - 1) * itemsPorPagina;
   const datosPagina = datosFiltrados.slice(inicio, inicio + itemsPorPagina);
 
-  const handleFiltro = (valor: string) => {
-    setFiltro(valor);
+  const setFiltroConReset = (v: string) => {
+    setFiltro(v);
     setPagina(1);
   };
 
   return (
-    <div className="space-y-4">
-      <div className="relative max-w-sm">
-        <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Buscar por velocidad..."
+    <DataCard>
+      <DataToolbar>
+        <SearchInput
           value={filtro}
-          onChange={(e) => handleFiltro(e.target.value)}
-          className="pl-8"
+          onChange={setFiltroConReset}
+          placeholder="Buscar por velocidad…"
         />
-      </div>
+      </DataToolbar>
 
       <DataTable
+        bare
         columns={columnas}
         data={datosPagina}
         loading={isLoading}
-        mensajeVacio="No hay velocidades"
+        mensajeVacio="No hay velocidades que coincidan con los filtros."
       />
 
-      {totalPaginas > 1 && (
-        <div className="flex justify-between items-center pt-4">
-          <span className="text-sm text-muted-foreground">
-            Mostrando {inicio + 1} - {Math.min(inicio + itemsPorPagina, datosFiltrados.length)} de {datosFiltrados.length} velocidades
+      {!isLoading && datosFiltrados.length > 0 && (
+        <DataPagination>
+          <span className="text-muted-foreground">
+            Mostrando{' '}
+            <span className="font-medium text-foreground tabular-nums">
+              {inicio + 1}–
+              {Math.min(inicio + itemsPorPagina, datosFiltrados.length)}
+            </span>{' '}
+            de{' '}
+            <span className="font-medium text-foreground tabular-nums">
+              {datosFiltrados.length}
+            </span>{' '}
+            velocidades
+            {filtro && (
+              <span className="ml-1 text-muted-foreground/70">(filtradas)</span>
+            )}
           </span>
-          <div className="flex gap-2">
-            <Button onClick={() => setPagina(p => p-1)} disabled={pagina === 1}>
-              <ChevronLeft className="h-4 w-4" />
-              Anterior
-            </Button>
-            <span className="px-2 py-1 text-sm">Página {pagina} de {totalPaginas}</span>
-            <Button onClick={() => setPagina(p => p+1)} disabled={pagina === totalPaginas}>
-              Siguiente
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+
+          {totalPaginas > 1 && (
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPagina((p) => p - 1)}
+                disabled={pagina === 1}
+                className="h-8"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+                Anterior
+              </Button>
+              <span className="px-2 text-sm tabular-nums text-muted-foreground">
+                Página {pagina} de {totalPaginas}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPagina((p) => p + 1)}
+                disabled={pagina === totalPaginas}
+                className="h-8"
+              >
+                Siguiente
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          )}
+        </DataPagination>
       )}
-    </div>
+    </DataCard>
   );
 }

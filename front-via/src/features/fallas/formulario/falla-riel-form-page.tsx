@@ -252,11 +252,29 @@ function SeccionArchivos({
   );
 }
 
-export function FallaRielFormPage() {
-  const { id } = useParams<{ id: string }>();
+interface FallaRielFormPageProps {
+  /** Si se provee, el formulario corre en "modo embebido" (sin ruta).
+   *  Pasa null para crear, un número para editar. */
+  idOverride?: number | null;
+  /** Callback cuando se cierra el formulario (X / Cancelar). En modo embebido. */
+  onClose?: () => void;
+  /** Callback cuando se completa con éxito. Recibe el id creado/actualizado. */
+  onSuccess?: (id: number) => void;
+}
+
+export function FallaRielFormPage(props: FallaRielFormPageProps = {}) {
+  const { idOverride, onClose, onSuccess } = props;
+  const isEmbedded = idOverride !== undefined || !!onClose || !!onSuccess;
+
+  const { id: idParam } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  const fallaId = id ? Number(id) : null;
+  const fallaId =
+    idOverride !== undefined
+      ? idOverride
+      : idParam
+        ? Number(idParam)
+        : null;
   const esEdicion = fallaId != null && fallaId > 0;
 
   const { data: fallaActual, isLoading: cargandoFalla } = useFallaRiel(
@@ -393,7 +411,11 @@ export function FallaRielFormPage() {
         id: fallaId!,
         dto,
       });
-      navigate(`/fallas/riel/${actualizada.id}`);
+      if (onSuccess) {
+        onSuccess(actualizada.id);
+      } else {
+        navigate(`/fallas/riel/${actualizada.id}`);
+      }
     } else {
       const dto: CrearFallaRielDto = {
         progresiva: data.progresiva,
@@ -405,6 +427,9 @@ export function FallaRielFormPage() {
       };
       const creada = await crearMut.mutateAsync(dto);
       setFallaIdCreada(creada.id);
+      // En modo embebido, no notificamos onSuccess aún — el usuario sigue
+      // viendo la pantalla "Banner creado" donde puede subir archivos antes
+      // de cerrar manualmente.
     }
   };
 
@@ -459,23 +484,31 @@ export function FallaRielFormPage() {
     return (
       <div className="p-4 space-y-2">
         <p>Falla no encontrada.</p>
-        <Button asChild variant="outline">
-          <Link to="/fallas/riel">Volver al listado</Link>
-        </Button>
+        {onClose ? (
+          <Button variant="outline" onClick={onClose}>
+            Cerrar
+          </Button>
+        ) : (
+          <Button asChild variant="outline">
+            <Link to="/fallas/riel">Volver al listado</Link>
+          </Button>
+        )}
       </div>
     );
   }
 
   return (
-    <div className="pagina-form-riel p-4 space-y-4">
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">
-          {esEdicion ? `Editar Falla Riel #${fallaId}` : 'Nueva Falla de Riel'}
-        </h1>
-        <Button asChild variant="outline">
-          <Link to="/fallas/riel">Cancelar</Link>
-        </Button>
-      </header>
+    <div className={isEmbedded ? 'space-y-4' : 'pagina-form-riel p-4 space-y-4'}>
+      {!isEmbedded && (
+        <header className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">
+            {esEdicion ? `Editar Falla Riel #${fallaId}` : 'Nueva Falla de Riel'}
+          </h1>
+          <Button asChild variant="outline">
+            <Link to="/fallas/riel">Cancelar</Link>
+          </Button>
+        </header>
+      )}
 
       {fallaIdCreada !== null && !esEdicion && (
         <BannerCreado
@@ -701,15 +734,36 @@ export function FallaRielFormPage() {
 
         {mostrarBotones && (
           <div className="flex justify-end gap-2">
-            <Button asChild variant="outline" type="button">
-              <Link to="/fallas/riel">Cancelar</Link>
-            </Button>
+            {onClose ? (
+              <Button variant="outline" type="button" onClick={onClose}>
+                Cancelar
+              </Button>
+            ) : (
+              <Button asChild variant="outline" type="button">
+                <Link to="/fallas/riel">Cancelar</Link>
+              </Button>
+            )}
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting
                 ? 'Guardando...'
                 : esEdicion
                   ? 'Guardar cambios'
                   : 'Crear falla'}
+            </Button>
+          </div>
+        )}
+
+        {/* En modo embebido, después de crear y subir archivos, botón "Listo" */}
+        {isEmbedded && !esEdicion && fallaIdCreada !== null && (
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              onClick={() => {
+                if (onSuccess) onSuccess(fallaIdCreada);
+                if (onClose) onClose();
+              }}
+            >
+              Listo
             </Button>
           </div>
         )}

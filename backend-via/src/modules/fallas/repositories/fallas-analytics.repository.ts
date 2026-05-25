@@ -25,6 +25,16 @@ import { AccionFalla } from '../../../common/enums';
  * fallasPorCategoria provienen de una whitelist estática
  * (MAPEO_CATEGORIA en Grafico2FallasService), nunca de input
  * directo del usuario.
+ *
+ * ============================================================
+ * NOTA SOBRE FILTROS DE CURVA Y ENUMS (FASE 1 + 2.D)
+ * ============================================================
+ * Los filtros nuevos (curva H/V, tipoDefecto, elementoAfectado, etc.)
+ * aplican SOLO a fallas_riel. La parte SOLDADURA del UNION pasa
+ * sin esos filtros. Decisión intencional: cuando el usuario filtra
+ * por "Astillamiento RCF" y tipoFalla=AMBAS, las soldaduras igual
+ * aparecen en el conteo. Esto es transparente y el usuario aprende
+ * del comportamiento (los enums de riel no existen en soldadura).
  * ============================================================
  */
 @Injectable()
@@ -40,17 +50,10 @@ export class FallasAnalyticsRepository {
   // KPI 1: Total fallas en mes actual (Riel + Soldadura)
   // ----------------------------------------------------------
 
-  /**
-   * Cuenta fallas creadas dentro del rango de fechas dado.
-   *
-   * @param fechaDesde Inicio del rango (inclusivo)
-   * @param fechaHasta Fin del rango (inclusivo)
-   */
   async contarTotalEnRango(
     fechaDesde: Date,
     fechaHasta: Date,
   ): Promise<{ riel: number; soldadura: number }> {
-    // Conteo de fallas de riel en el rango
     const riel = await this.fallasRielRepo
       .createQueryBuilder('f')
       .where('f.eliminado = false')
@@ -60,7 +63,6 @@ export class FallasAnalyticsRepository {
       })
       .getCount();
 
-    // Conteo de fallas de soldadura en el rango
     const soldadura = await this.fallasSoldRepo
       .createQueryBuilder('f')
       .where('f.eliminado = false')
@@ -77,19 +79,10 @@ export class FallasAnalyticsRepository {
   // KPI 2: Tramo con más fallas en últimos 12 meses
   // ----------------------------------------------------------
 
-  /**
-   * Devuelve el tramo con mayor cantidad de fallas en el rango.
-   *
-   * Considera AMBAS tablas (Riel y Soldadura). Para Soldadura,
-   * el tramo viene vía cambiavía → tramo_id.
-   *
-   * Devuelve null si no hay fallas en el rango.
-   */
   async obtenerTramoConMasFallas(
     fechaDesde: Date,
     fechaHasta: Date,
   ): Promise<{ tramoId: number; codigo: string; nombre: string; total: number } | null> {
-    // ✨ Query con alias calificados (f.tramo_id, cv.tramo_id) para evitar ambigüedad
     const sql = `
       WITH fallas_unificadas AS (
         SELECT f.tramo_id
@@ -116,7 +109,6 @@ export class FallasAnalyticsRepository {
     `;
 
     const result = await this.fallasRielRepo.query(sql, [fechaDesde, fechaHasta]);
-
     if (result.length === 0) return null;
     return result[0];
   }
@@ -125,10 +117,6 @@ export class FallasAnalyticsRepository {
   // KPI 3: Soldaduras sin acción definida (POR_DEFINIR)
   // ----------------------------------------------------------
 
-  /**
-   * Cuenta fallas de soldadura activas con acción = POR_DEFINIR.
-   * Considera el histórico completo (no por rango).
-   */
   async contarSoldadurasSinAccion(): Promise<number> {
     return this.fallasSoldRepo
       .createQueryBuilder('f')
@@ -138,22 +126,27 @@ export class FallasAnalyticsRepository {
   }
 
   // ----------------------------------------------------------
+  // INTERFACE: filtros analíticos de RIEL
+  // ----------------------------------------------------------
+
+  // Reúne en un objeto los filtros opcionales de RIEL para no
+  // tener firmas de método con 12 parámetros. Solo gráficos los usan.
+
+  // ----------------------------------------------------------
   // GRÁFICO 1: Evolución temporal por tramo
   // ----------------------------------------------------------
 
   /**
    * Cuenta fallas agrupadas por tramo y por periodo (mes o año).
    *
-   * @param granularidad 'MENSUAL' o 'ANUAL' (controla el EXTRACT)
-   * @param fechaDesde   Inicio del rango
-   * @param fechaHasta   Fin del rango (inclusivo)
-   * @param incluirRiel  Si true, suma fallas_riel
-   * @param incluirSoldadura Si true, suma fallas_soldadura_inox
-   * @param viaFiltro    'PAR' | 'IMPAR' | null (null = ambas)
-   * @param tramoIds     IDs de tramos seleccionados (opcional, null/[] = todos)
+   * @param granularidad 'MENSUAL' o 'ANUAL'
+   * @param fechaDesde / fechaHasta  Rango temporal
+   * @param incluirRiel / incluirSoldadura  Qué tablas considerar
+   * @param viaFiltro 'PAR' | 'IMPAR' | null (null = ambas)
+   * @param tramoIds IDs de tramos (opcional, aplica a ambas)
+   * @param filtrosRiel Filtros que SOLO aplican a fallas_riel
    *
-   * 🔒 SEGURIDAD: tramoIds y viaFiltro son parámetros posicionales,
-   * no se concatenan al SQL.
+   * 🔒 SEGURIDAD: todos los valores van como parámetros posicionales.
    */
   async fallasPorTramoYPeriodo(
     granularidad: 'MENSUAL' | 'ANUAL',
@@ -163,6 +156,7 @@ export class FallasAnalyticsRepository {
     incluirSoldadura: boolean,
     viaFiltro: string | null,
     tramoIds?: number[],
+    filtrosRiel?: FiltrosAnaliticosRiel,
   ): Promise<Array<{
     tramoId: number;
     codigo: string;
@@ -170,24 +164,18 @@ export class FallasAnalyticsRepository {
     periodo: number;
     total: number;
   }>> {
-    // EXTRACT solo acepta literales fijos, no es input de usuario -> seguro
     const extractExpr = granularidad === 'MENSUAL' ? 'MONTH' : 'YEAR';
 
-    // 🔒 Acumulamos parámetros en orden: $1=desde, $2=hasta, $3=viaFiltro, luego tramoIds
+    // 🔒 Parámetros posicionales: $1=desde, $2=hasta, $3=viaFiltro
     const params: any[] = [fechaDesde, fechaHasta, viaFiltro];
 
-    // 🔒 Construir placeholders dinámicos para tramoIds: $4, $5, $6...
-    let tramoCondicionRiel = '';
-    let tramoCondicionSold = '';
-    if (tramoIds?.length) {
-      const inicio = params.length + 1; // siguiente índice disponible
-      const placeholders = tramoIds.map((_, i) => `$${inicio + i}`).join(',');
-      tramoCondicionRiel = `AND f.tramo_id IN (${placeholders})`;
-      tramoCondicionSold = `AND cv.tramo_id IN (${placeholders})`;
-      params.push(...tramoIds);
-    }
+    // Tramos (aplica a ambas)
+    const { condicionRiel: tramoCondicionRiel, condicionSold: tramoCondicionSold } =
+      this.construirCondicionIds(tramoIds, params, 'f.tramo_id', 'cv.tramo_id');
 
-    // 🔒 viaFiltro parametrizado: si es null, el filtro no aplica (NULL IS NULL pasa)
+    // Curvas y enums (solo riel)
+    const condicionesRielExtra = this.construirCondicionesRiel(filtrosRiel, params);
+
     const viaCondicionRiel = `AND ($3::text IS NULL OR f.via = $3)`;
     const viaCondicionSold = `AND ($3::text IS NULL OR cv.via = $3)`;
 
@@ -203,6 +191,7 @@ export class FallasAnalyticsRepository {
           AND f.fecha BETWEEN $1 AND $2
           ${viaCondicionRiel}
           ${tramoCondicionRiel}
+          ${condicionesRielExtra}
       `);
     }
 
@@ -222,11 +211,9 @@ export class FallasAnalyticsRepository {
 
     if (partes.length === 0) return [];
 
-    const unionSql = partes.join(' UNION ALL ');
-
     const sql = `
       WITH fallas_unificadas AS (
-        ${unionSql}
+        ${partes.join(' UNION ALL ')}
       )
       SELECT
         fu.tramo_id   AS "tramoId",
@@ -250,18 +237,16 @@ export class FallasAnalyticsRepository {
   /**
    * Cuenta fallas agrupadas por una categoría dinámica.
    *
-   * @param columnaRiel       Nombre de columna en fallas_riel (o null si no aplica)
-   * @param columnaSoldadura  Nombre de columna en fallas_soldadura_inox (o null si no aplica)
-   * @param fechaDesde / fechaHasta  Rango temporal
-   * @param incluirRiel       Considerar fallas_riel
-   * @param incluirSoldadura  Considerar fallas_soldadura_inox
-   * @param viaFiltro         'PAR' | 'IMPAR' | null
-   * @param tramoIds          IDs de tramos (opcional)
+   * @param columnaRiel       Whitelist estática (MAPEO_CATEGORIA en service)
+   * @param columnaSoldadura  Whitelist estática
+   * @param fechaDesde / fechaHasta
+   * @param incluirRiel / incluirSoldadura
+   * @param viaFiltro
+   * @param tramoIds
+   * @param filtrosRiel Filtros solo de fallas_riel (curva + enums Fase 2.D)
    *
-   * 🔒 SEGURIDAD:
-   * - columnaRiel y columnaSoldadura vienen de whitelist estática
-   *   (MAPEO_CATEGORIA en Grafico2FallasService), NUNCA de input del usuario.
-   * - tramoIds y viaFiltro son parámetros posicionales.
+   * 🔒 columnaRiel/columnaSoldadura vienen SIEMPRE de whitelist estática,
+   * NUNCA de input del usuario.
    */
   async fallasPorCategoria(
     columnaRiel: string | null,
@@ -272,19 +257,14 @@ export class FallasAnalyticsRepository {
     incluirSoldadura: boolean,
     viaFiltro: string | null,
     tramoIds?: number[],
+    filtrosRiel?: FiltrosAnaliticosRiel,
   ): Promise<Array<{ categoria: string; total: number }>> {
-    // 🔒 Parámetros posicionales
     const params: any[] = [fechaDesde, fechaHasta, viaFiltro];
 
-    let tramoCondicionRiel = '';
-    let tramoCondicionSold = '';
-    if (tramoIds?.length) {
-      const inicio = params.length + 1;
-      const placeholders = tramoIds.map((_, i) => `$${inicio + i}`).join(',');
-      tramoCondicionRiel = `AND f.tramo_id IN (${placeholders})`;
-      tramoCondicionSold = `AND cv.tramo_id IN (${placeholders})`;
-      params.push(...tramoIds);
-    }
+    const { condicionRiel: tramoCondicionRiel, condicionSold: tramoCondicionSold } =
+      this.construirCondicionIds(tramoIds, params, 'f.tramo_id', 'cv.tramo_id');
+
+    const condicionesRielExtra = this.construirCondicionesRiel(filtrosRiel, params);
 
     const viaCondicionRiel = `AND ($3::text IS NULL OR f.via = $3)`;
     const viaCondicionSold = `AND ($3::text IS NULL OR cv.via = $3)`;
@@ -299,11 +279,11 @@ export class FallasAnalyticsRepository {
           AND f.fecha BETWEEN $1 AND $2
           ${viaCondicionRiel}
           ${tramoCondicionRiel}
+          ${condicionesRielExtra}
       `);
     }
 
     if (incluirSoldadura && columnaSoldadura) {
-      // Si la columna empieza con "cv.", ya viene calificada (ej: cv.via)
       const expresionCol = columnaSoldadura.startsWith('cv.')
         ? columnaSoldadura
         : `f.${columnaSoldadura}`;
@@ -320,11 +300,9 @@ export class FallasAnalyticsRepository {
 
     if (partes.length === 0) return [];
 
-    const unionSql = partes.join(' UNION ALL ');
-
     const sql = `
       WITH fallas_unificadas AS (
-        ${unionSql}
+        ${partes.join(' UNION ALL ')}
       )
       SELECT
         categoria      AS "categoria",
@@ -342,18 +320,6 @@ export class FallasAnalyticsRepository {
   // GRÁFICO 3: Fallas por velocidad
   // ----------------------------------------------------------
 
-  /**
-   * Cuenta fallas agrupadas por velocidad y por tipo (RIEL/SOLDADURA).
-   *
-   * @param fechaDesde Inicio del rango
-   * @param fechaHasta Fin del rango
-   * @param incluirRiel Si incluir fallas de riel
-   * @param incluirSoldadura Si incluir fallas de soldadura
-   * @param viaFiltro 'PAR' | 'IMPAR' | null
-   * @param tramoIds IDs de tramos seleccionados (opcional)
-   *
-   * 🔒 SEGURIDAD: tramoIds y viaFiltro son parámetros posicionales.
-   */
   async fallasPorVelocidadYTipo(
     fechaDesde: Date,
     fechaHasta: Date,
@@ -361,19 +327,14 @@ export class FallasAnalyticsRepository {
     incluirSoldadura: boolean,
     viaFiltro: string | null,
     tramoIds?: number[],
+    filtrosRiel?: FiltrosAnaliticosRiel,
   ): Promise<Array<{ velocidad: number; tipo: 'RIEL' | 'SOLDADURA'; total: number }>> {
-    // 🔒 Parámetros posicionales
     const params: any[] = [fechaDesde, fechaHasta, viaFiltro];
 
-    let tramoCondicionRiel = '';
-    let tramoCondicionSold = '';
-    if (tramoIds?.length) {
-      const inicio = params.length + 1;
-      const placeholders = tramoIds.map((_, i) => `$${inicio + i}`).join(',');
-      tramoCondicionRiel = `AND f.tramo_id IN (${placeholders})`;
-      tramoCondicionSold = `AND cv.tramo_id IN (${placeholders})`;
-      params.push(...tramoIds);
-    }
+    const { condicionRiel: tramoCondicionRiel, condicionSold: tramoCondicionSold } =
+      this.construirCondicionIds(tramoIds, params, 'f.tramo_id', 'cv.tramo_id');
+
+    const condicionesRielExtra = this.construirCondicionesRiel(filtrosRiel, params);
 
     const viaCondicionRiel = `AND ($3::text IS NULL OR f.via = $3)`;
     const viaCondicionSold = `AND ($3::text IS NULL OR cv.via = $3)`;
@@ -391,6 +352,7 @@ export class FallasAnalyticsRepository {
           AND f.velocidad_kmh IS NOT NULL
           ${viaCondicionRiel}
           ${tramoCondicionRiel}
+          ${condicionesRielExtra}
       `);
     }
 
@@ -411,11 +373,9 @@ export class FallasAnalyticsRepository {
 
     if (partes.length === 0) return [];
 
-    const unionSql = partes.join(' UNION ALL ');
-
     const sql = `
       WITH fallas_unificadas AS (
-        ${unionSql}
+        ${partes.join(' UNION ALL ')}
       )
       SELECT
         velocidad     AS "velocidad",
@@ -428,4 +388,116 @@ export class FallasAnalyticsRepository {
 
     return this.fallasRielRepo.query(sql, params);
   }
+
+  // ==========================================================
+  // HELPERS PRIVADOS
+  // ==========================================================
+
+  /**
+   * Construye condiciones SQL para filtros tipo "columna IN (...)"
+   * con placeholders dinámicos seguros, para arrays NUMÉRICOS.
+   *
+   * @param ids       Array de IDs (si vacío/undefined, no genera condición)
+   * @param params    Array acumulador de parámetros (se MUTA)
+   * @param colRiel   Columna en tabla riel (o null si no aplica)
+   * @param colSold   Columna en tabla soldadura (o null si solo aplica a riel)
+   *
+   * 🔒 los IDs nunca se concatenan al SQL; placeholders posicionales.
+   */
+  private construirCondicionIds(
+    ids: number[] | undefined,
+    params: any[],
+    colRiel: string | null,
+    colSold: string | null,
+  ): { condicionRiel: string; condicionSold: string } {
+    if (!ids?.length) {
+      return { condicionRiel: '', condicionSold: '' };
+    }
+
+    const inicio = params.length + 1;
+    const placeholders = ids.map((_, i) => `$${inicio + i}`).join(',');
+    params.push(...ids);
+
+    return {
+      condicionRiel: colRiel ? `AND ${colRiel} IN (${placeholders})` : '',
+      condicionSold: colSold ? `AND ${colSold} IN (${placeholders})` : '',
+    };
+  }
+
+  /**
+   * Variante para arrays de STRINGS (valores de enum).
+   * Genera la condición solo para la parte RIEL (los enums nuevos
+   * no aplican a soldadura).
+   *
+   * @param valores   Array de strings (si vacío/undefined, no genera)
+   * @param params    Acumulador (se MUTA)
+   * @param colRiel   Columna en fallas_riel
+   */
+  private construirCondicionEnumRiel(
+    valores: string[] | undefined,
+    params: any[],
+    colRiel: string,
+  ): string {
+    if (!valores?.length) return '';
+
+    const inicio = params.length + 1;
+    const placeholders = valores.map((_, i) => `$${inicio + i}`).join(',');
+    params.push(...valores);
+
+    return `AND ${colRiel} IN (${placeholders})`;
+  }
+
+  /**
+   * Construye TODAS las condiciones SQL específicas de RIEL en un solo
+   * fragmento concatenable. Centraliza el manejo de los 7 filtros que
+   * aplican solo a fallas_riel:
+   *  - curvaHorizontalIds (Fase 1)
+   *  - curvaVerticalIds (Fase 1)
+   *  - tipoDefectos (Fase 2.D)
+   *  - elementosAfectados (Fase 2.D)
+   *  - zonasAfectadas (Fase 2.D)
+   *  - perfiles (Fase 2.D)
+   *  - estadosActuales (Fase 2.D)
+   *
+   * Cada condición se agrega solo si vienen valores. Si todo es vacío,
+   * devuelve string vacío sin afectar la query.
+   */
+  private construirCondicionesRiel(
+    filtros: FiltrosAnaliticosRiel | undefined,
+    params: any[],
+  ): string {
+    if (!filtros) return '';
+
+    const partes: string[] = [
+      this.construirCondicionIds(filtros.curvaHorizontalIds, params, 'f.curva_horizontal_id', null).condicionRiel,
+      this.construirCondicionIds(filtros.curvaVerticalIds, params, 'f.curva_vertical_id', null).condicionRiel,
+      this.construirCondicionEnumRiel(filtros.tipoDefectos, params, 'f.tipo_defecto'),
+      this.construirCondicionEnumRiel(filtros.elementosAfectados, params, 'f.elemento_afectado'),
+      this.construirCondicionEnumRiel(filtros.zonasAfectadas, params, 'f.zona_afectada'),
+      this.construirCondicionEnumRiel(filtros.perfiles, params, 'f.perfil'),
+      this.construirCondicionEnumRiel(filtros.estadosActuales, params, 'f.estado_actual'),
+    ];
+
+    // Concatenar las que no son vacías (cada una ya viene con "AND " adelante)
+    return partes.filter((p) => p.length > 0).join(' ');
+  }
+}
+
+// ============================================================
+// INTERFACE PÚBLICA
+// ============================================================
+
+/**
+ * Filtros analíticos que aplican SOLO a fallas_riel.
+ * Se pasan como un objeto opcional a los métodos de gráficos para
+ * mantener firmas cortas y permitir crecer en el futuro sin romper.
+ */
+export interface FiltrosAnaliticosRiel {
+  curvaHorizontalIds?: number[];
+  curvaVerticalIds?: number[];
+  tipoDefectos?: string[];
+  elementosAfectados?: string[];
+  zonasAfectadas?: string[];
+  perfiles?: string[];
+  estadosActuales?: string[];
 }

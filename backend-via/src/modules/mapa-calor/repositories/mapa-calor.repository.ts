@@ -60,12 +60,19 @@ export class MapaCalorRepository {
         FROM mediciones_desgaste m
         WHERE m.${puntoW} IS NOT NULL
           AND (
-            make_date(m.anio, m.trimestre * 3 + 1, 1) - INTERVAL '1 day'
-          )::date <= $1::date
+            (
+              make_date(m.anio, m.trimestre * 3, 1)
+              + INTERVAL '1 month'
+              - INTERVAL '1 day'
+            )::date
+          ) <= $1::date
       ),
       ranked AS (
         SELECT
-          elemento_id, anio, trimestre, valor,
+          elemento_id,
+          anio,
+          trimestre,
+          valor,
           ROW_NUMBER() OVER (
             PARTITION BY elemento_id
             ORDER BY anio DESC, trimestre DESC
@@ -80,6 +87,7 @@ export class MapaCalorRepository {
       FROM ranked
       WHERE rn = 1
     `;
+
     return this.medRepo.query(sql, [fechaCorte]);
   }
 

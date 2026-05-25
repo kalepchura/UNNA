@@ -5,12 +5,14 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { FallaRiel } from './entities/falla-riel.entity';
 import { FallaSoldaduraInox } from './entities/falla-soldadura-inox.entity';
 import { ImagenFalla } from './entities/imagen-falla.entity';
+import { FallaRielAccion } from './entities/falla-riel-accion.entity';
 
 // Repositorios
 import { FallasRielRepository } from './repositories/fallas-riel.repository';
 import { FallasSoldaduraInoxRepository } from './repositories/fallas-soldadura-inox.repository';
 import { ImagenesFallaRepository } from './repositories/imagenes-falla.repository';
 import { FallasAnalyticsRepository } from './repositories/fallas-analytics.repository';
+import { FallasRielAccionRepository } from './repositories/fallas-riel-accion.repository'; // ← FASE 2.B
 
 // Services
 import { FallasRielService } from './services/fallas-riel.service';
@@ -20,11 +22,13 @@ import { KpisFallasService } from './services/kpis-fallas.service';
 import { Grafico1FallasService } from './services/grafico-1-fallas.service';
 import { Grafico2FallasService } from './services/grafico-2-fallas.service';
 import { Grafico3FallasService } from './services/grafico-3-fallas.service';
+import { FallasRielAccionService } from './services/fallas-riel-accion.service'; // ← FASE 2.C
 
 // Controllers
 import { FallasRielController } from './controllers/fallas-riel.controller';
 import { FallasSoldaduraInoxController } from './controllers/fallas-soldadura-inox.controller';
 import { FallasAnalyticsController } from './controllers/fallas-analytics.controller';
+import { FallasRielAccionController } from './controllers/fallas-riel-accion.controller'; // ← FASE 2.C
 
 // Catálogos
 import { TramosModule } from '../catalogos/tramos/tramos.module';
@@ -35,7 +39,12 @@ import { VelocidadesModule } from '../catalogos/velocidades/velocidades.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([FallaRiel, FallaSoldaduraInox, ImagenFalla]),
+    TypeOrmModule.forFeature([
+      FallaRiel,
+      FallaSoldaduraInox,
+      ImagenFalla,
+      FallaRielAccion, 
+    ]),
     TramosModule,
     CurvasHorizontalesModule,
     CurvasVerticalesModule,
@@ -46,6 +55,7 @@ import { VelocidadesModule } from '../catalogos/velocidades/velocidades.module';
     FallasRielController,
     FallasSoldaduraInoxController,
     FallasAnalyticsController,
+    FallasRielAccionController, 
   ],
   providers: [
     // CRUD
@@ -56,6 +66,10 @@ import { VelocidadesModule } from '../catalogos/velocidades/velocidades.module';
     ImagenesFallaRepository,
     ImagenesFallaService,
 
+    // Historial de acciones (FASE 2)
+    FallasRielAccionRepository,
+    FallasRielAccionService,
+
     // Analytics
     FallasAnalyticsRepository,
     KpisFallasService,
@@ -65,6 +79,7 @@ import { VelocidadesModule } from '../catalogos/velocidades/velocidades.module';
   ],
   exports: [
     FallasRielService,
+    FallasRielAccionService, 
     FallasSoldaduraInoxService,
     Grafico1FallasService,
     Grafico2FallasService,

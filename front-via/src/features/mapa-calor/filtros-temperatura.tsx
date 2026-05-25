@@ -1,6 +1,4 @@
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -8,6 +6,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  FiltersToolbar,
+  FiltersGrid,
+  FilterField,
+  DateInput,
+} from '@/components/shared/filters-toolbar';
 import type { MapaTemperaturaFiltros } from './types/mapa-calor.types';
 
 interface Props {
@@ -17,56 +21,67 @@ interface Props {
   isLoading?: boolean;
 }
 
-export function FiltrosTemperatura({ filtros, onChange, onAplicar, isLoading }: Props) {
+export function FiltrosTemperatura({
+  filtros,
+  onChange,
+  onAplicar,
+  isLoading,
+}: Props) {
   return (
-    <Card>
-      <CardContent className="pt-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <Label className="text-sm font-medium">Fecha Desde</Label>
-            <input
-              type="date"
-              value={filtros.fechaDesde ?? ''}
-              onChange={(e) => onChange({ ...filtros, fechaDesde: e.target.value || undefined })}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <Label className="text-sm font-medium">Fecha Hasta</Label>
-            <input
-              type="date"
-              value={filtros.fechaHasta ?? ''}
-              onChange={(e) => onChange({ ...filtros, fechaHasta: e.target.value || undefined })}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <Label className="text-sm font-medium">Tipo de valor</Label>
-            <Select
-              value={filtros.tipoValor ?? 'PROMEDIO'}
-              onValueChange={(value) =>
-                onChange({
-                  ...filtros,
-                  tipoValor: value as 'PROMEDIO' | 'MAXIMO',
-                })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Promedio" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="PROMEDIO">Promedio</SelectItem>
-                <SelectItem value="MAXIMO">Máximo</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        <div className="mt-4 flex justify-end">
-          <Button onClick={onAplicar} disabled={isLoading}>
-            {isLoading ? 'Cargando...' : 'Actualizar mapa'}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+    <FiltersToolbar
+      title="Filtros de la capa"
+      description="Configura el rango y el tipo de valor a visualizar."
+      primaryAction={
+        <Button onClick={onAplicar} disabled={isLoading} size="sm">
+          {isLoading ? 'Cargando…' : 'Actualizar mapa'}
+        </Button>
+      }
+    >
+      <FiltersGrid columns={3}>
+        <FilterField label="Fecha desde">
+          <DateInput
+            value={filtros.fechaDesde ?? ''}
+            onChange={(e) =>
+              onChange({
+                ...filtros,
+                fechaDesde: e.target.value || undefined,
+              })
+            }
+          />
+        </FilterField>
+
+        <FilterField label="Fecha hasta">
+          <DateInput
+            value={filtros.fechaHasta ?? ''}
+            onChange={(e) =>
+              onChange({
+                ...filtros,
+                fechaHasta: e.target.value || undefined,
+              })
+            }
+          />
+        </FilterField>
+
+        <FilterField label="Tipo de valor">
+          <Select
+            value={filtros.tipoValor ?? 'PROMEDIO'}
+            onValueChange={(value) =>
+              onChange({
+                ...filtros,
+                tipoValor: value as 'PROMEDIO' | 'MAXIMO',
+              })
+            }
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Promedio" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="PROMEDIO">Promedio</SelectItem>
+              <SelectItem value="MAXIMO">Máximo</SelectItem>
+            </SelectContent>
+          </Select>
+        </FilterField>
+      </FiltersGrid>
+    </FiltersToolbar>
   );
 }

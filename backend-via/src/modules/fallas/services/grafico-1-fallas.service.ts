@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { FallasAnalyticsRepository } from '../repositories/fallas-analytics.repository';
+import { FallasAnalyticsRepository, FiltrosAnaliticosRiel } from '../repositories/fallas-analytics.repository';
 import { Grafico1RequestDto } from '../dto/graficos/grafico-1/grafico-1-request.dto';
 import {
   Grafico1ResponseDto,
@@ -26,6 +26,14 @@ const CONFIG_BASE_G1: Required<Grafico1ConfigDto> = {
   tipoFalla: TipoFallaFiltro.AMBAS,
   tipoVia: TipoViaFiltro.AMBAS,
   tramoIds: [2, 4],
+  curvaHorizontalIds: [],
+  curvaVerticalIds: [],
+  // FASE 2.D — defaults vacíos
+  tipoDefectos: [],
+  elementosAfectados: [],
+  zonasAfectadas: [],
+  perfiles: [],
+  estadosActuales: [],
 };
 
 @Injectable()
@@ -39,10 +47,6 @@ export class Grafico1FallasService {
   constructor(private readonly analyticsRepo: FallasAnalyticsRepository) {}
 
   async calcular(request: Grafico1RequestDto): Promise<Grafico1ResponseDto> {
-    // 🔒 FIX: Quitar propiedades undefined antes del merge.
-    // Si el frontend manda { anio: undefined }, el spread normal lo
-    // sobrescribiría con undefined, pisando el default. limpiarUndefined
-    // garantiza que solo valores definidos pisen los defaults.
     const configLimpia = limpiarUndefined(request.config ?? {});
 
     const config = {
@@ -59,10 +63,7 @@ export class Grafico1FallasService {
       }
 
       const result = await this.calcularDesdeBD(config);
-      this.cacheBase = {
-        data: result,
-        expira: ahora + this.TTL_MS,
-      };
+      this.cacheBase = { data: result, expira: ahora + this.TTL_MS };
       return result;
     }
 
@@ -81,7 +82,14 @@ export class Grafico1FallasService {
       config.anioFin === CONFIG_BASE_G1.anioFin &&
       config.tipoFalla === CONFIG_BASE_G1.tipoFalla &&
       config.tipoVia === CONFIG_BASE_G1.tipoVia &&
-      JSON.stringify(config.tramoIds) === JSON.stringify(CONFIG_BASE_G1.tramoIds)
+      JSON.stringify(config.tramoIds) === JSON.stringify(CONFIG_BASE_G1.tramoIds) &&
+      JSON.stringify(config.curvaHorizontalIds) === JSON.stringify(CONFIG_BASE_G1.curvaHorizontalIds) &&
+      JSON.stringify(config.curvaVerticalIds) === JSON.stringify(CONFIG_BASE_G1.curvaVerticalIds) &&
+      JSON.stringify(config.tipoDefectos) === JSON.stringify(CONFIG_BASE_G1.tipoDefectos) &&
+      JSON.stringify(config.elementosAfectados) === JSON.stringify(CONFIG_BASE_G1.elementosAfectados) &&
+      JSON.stringify(config.zonasAfectadas) === JSON.stringify(CONFIG_BASE_G1.zonasAfectadas) &&
+      JSON.stringify(config.perfiles) === JSON.stringify(CONFIG_BASE_G1.perfiles) &&
+      JSON.stringify(config.estadosActuales) === JSON.stringify(CONFIG_BASE_G1.estadosActuales)
     );
   }
 
@@ -97,6 +105,17 @@ export class Grafico1FallasService {
 
     const viaFiltro = config.tipoVia === TipoViaFiltro.AMBAS ? null : config.tipoVia;
 
+    // FASE 2.D — armar objeto de filtros solo-riel
+    const filtrosRiel: FiltrosAnaliticosRiel = {
+      curvaHorizontalIds: config.curvaHorizontalIds,
+      curvaVerticalIds: config.curvaVerticalIds,
+      tipoDefectos: config.tipoDefectos,
+      elementosAfectados: config.elementosAfectados,
+      zonasAfectadas: config.zonasAfectadas,
+      perfiles: config.perfiles,
+      estadosActuales: config.estadosActuales,
+    };
+
     const filas = await this.analyticsRepo.fallasPorTramoYPeriodo(
       config.granularidad,
       fechaDesde,
@@ -105,6 +124,7 @@ export class Grafico1FallasService {
       incluirSoldadura,
       viaFiltro,
       config.tramoIds,
+      filtrosRiel,
     );
 
     const categorias = this.construirCategorias(config);
@@ -122,11 +142,6 @@ export class Grafico1FallasService {
     };
   }
 
-  /**
-   * 🔒 Defensa adicional: si por alguna razón llegó un año no válido,
-   * usa los defaults del CONFIG_BASE. Esto cubre el caso de que el
-   * frontend pase un string en vez de número, o NaN.
-   */
   private calcularRango(config: Required<Grafico1ConfigDto>): { fechaDesde: Date; fechaHasta: Date } {
     const anio = Number.isInteger(config.anio)
       ? config.anio
@@ -143,7 +158,6 @@ export class Grafico1FallasService {
     if (config.granularidad === GranularidadTemporal.MENSUAL) {
       return {
         fechaDesde: new Date(anio, 0, 1),
-        // 23:59:59 para incluir todo el último día (antes era medianoche)
         fechaHasta: new Date(anio, 11, 31, 23, 59, 59),
       };
     }
@@ -202,30 +216,9 @@ export class Grafico1FallasService {
 }
 
 // ============================================================
-// HELPERS LOCALES (fuera de la clase)
+// HELPERS LOCALES
 // ============================================================
 
-/**
- * Quita todas las propiedades `undefined` de un objeto.
- *
- * ¿Por qué existe este helper?
- *
- * En JavaScript/TypeScript, el spread operator NO se salta los
- * `undefined`. Por ejemplo:
- *
- *   const defaults = { anio: 2026 };
- *   const incoming = { anio: undefined };
- *   const merged = { ...defaults, ...incoming };
- *   // → { anio: undefined }  ← el default fue SOBRESCRITO
- *
- * Esto causaba que cuando el frontend mandaba `anio: undefined`
- * (al borrar el input), el backend recibía undefined en vez del
- * default, y luego `new Date(undefined, 0, 1)` daba Invalid Date.
- *
- * Con este helper:
- *   const merged = { ...defaults, ...limpiarUndefined(incoming) };
- *   // → { anio: 2026 }  ← el default se respeta correctamente
- */
 function limpiarUndefined<T extends Record<string, any>>(obj: T): Partial<T> {
   const result: Partial<T> = {};
   for (const key in obj) {

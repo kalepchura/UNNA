@@ -1,19 +1,28 @@
 import { useState, useMemo, useCallback, memo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
+import { ArrowLeft, Save, Plus, Trash2 } from 'lucide-react';
+
 import { useApiQuery } from '@/hooks/use-api-query';
 import { useApiMutation } from '@/hooks/use-api-mutation';
 import { useInvalidate } from '@/hooks/use-invalidate';
 import { desgasteApi } from '@/lib/api/desgaste.api';
-import { DataTable } from '@/components/tables/data-table';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Save, Plus } from 'lucide-react';
+
+import { PageHeader } from '@/components/layout/page-header';
+import { DataCard } from '@/components/shared/data-card';
+import { DataTable } from '@/components/tables/data-table';
+
 import type { ValorMtbDto } from '../types/valores-mtb.types';
 
-const ANO_ACTUAL = new Date().getFullYear();
+const ANIO_MIN = 2012;
+const ANIO_ACTUAL = new Date().getFullYear();
 
-// ✅ memo + useCallback — no se re-renderiza al cambiar otros años
+/* =========================================
+   INPUT MEMOIZADO
+========================================= */
 const MtbInput = memo(function MtbInput({
   anio,
   valorInicial,
@@ -33,39 +42,45 @@ const MtbInput = memo(function MtbInput({
       step="0.001"
       min="0"
       value={local}
+      placeholder="—"
+      className="w-36 tabular-nums"
       onChange={(e) => {
-        // ✅ Solo números y punto — bloquear letras y caracteres raros
         const val = e.target.value;
+
         if (val === '' || /^\d*\.?\d*$/.test(val)) {
           setLocal(val);
         }
       }}
       onKeyDown={(e) => {
-        // Bloquear e, E, +, - que HTML number permite por defecto
-        if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
+        if (['e', 'E', '+', '-'].includes(e.key)) {
+          e.preventDefault();
+        }
       }}
       onBlur={() => {
-        const val = local === '' ? null : Number(local);
-        onCommit(anio, val);
+        onCommit(anio, local === '' ? null : Number(local));
       }}
-      className="w-36"
-      placeholder="—"
     />
   );
 });
 
-// Fila con tipo extendido para manejar años sin dato
+/* =========================================
+   TYPES
+========================================= */
 interface FilaMtb {
   id: number;
   anio: number;
-  mtbOriginal: number | null;   // valor del backend
-  mtbVisible: number | null;    // valor con cambios aplicados
-  mtbAcumulado: number;         // calculado en tiempo real
+  mtbVisible: number | null;
+  mtbAcumulado: number | null;
+  esFuturo: boolean;
 }
 
+/* =========================================
+   PAGE
+========================================= */
 export function ValoresMtbPage() {
   const { id } = useParams<{ id: string }>();
   const escenarioId = Number(id);
+
   const navigate = useNavigate();
   const invalidate = useInvalidate();
 
@@ -75,86 +90,192 @@ export function ValoresMtbPage() {
   });
 
   const [cambios, setCambios] = useState<Record<number, number | null>>({});
-
-  // Años a mostrar: los que tienen dato en backend + años agregados manualmente
   const [aniosExtra, setAniosExtra] = useState<number[]>([]);
 
-  const handleCommit = useCallback((anio: number, val: number | null) => {
-    setCambios((prev) => ({ ...prev, [anio]: val }));
+  /* =========================================
+     AÑOS BASE
+  ========================================= */
+  const aniosBase = useMemo(() => {
+    const lista: number[] = [];
+
+    for (let a = ANIO_MIN; a <= ANIO_ACTUAL; a++) {
+      lista.push(a);
+    }
+
+    return lista;
   }, []);
 
+  /* =========================================
+     HANDLE INPUT
+  ========================================= */
+  const handleCommit = useCallback(
+    (anio: number, val: number | null) => {
+      setCambios((prev) => ({
+        ...prev,
+        [anio]: val,
+      }));
+    },
+    [],
+  );
+
+  /* =========================================
+     AGREGAR AÑO FUTURO
+  ========================================= */
   const agregarAnio = () => {
-    // Busca el siguiente año no presente
-    const aniosExistentes = new Set([
+    const max = Math.max(
+      ANIO_ACTUAL,
       ...(data?.valores ?? []).map((v) => v.anio),
       ...aniosExtra,
-    ]);
-    let siguiente = ANO_ACTUAL;
-    while (aniosExistentes.has(siguiente)) siguiente++;
-    setAniosExtra((prev) => [...prev, siguiente]);
+    );
+
+    setAniosExtra((prev) => [...prev, max + 1]);
   };
 
-  // ✅ Acumulado correcto: años sin dato no suman
+  /* =========================================
+     ELIMINAR AÑO FUTURO
+     (soft delete = mtb null)
+  ========================================= */
+  const eliminarAnio = (anio: number) => {
+    setCambios((prev) => ({
+      ...prev,
+      [anio]: null,
+    }));
+
+    setAniosExtra((prev) => prev.filter((a) => a !== anio));
+  };
+
+  /* =========================================
+     FILAS
+  ========================================= */
   const filasMostradas = useMemo((): FilaMtb[] => {
     const mapaBackend = new Map<number, ValorMtbDto>();
+
     for (const v of data?.valores ?? []) {
       mapaBackend.set(v.anio, v);
     }
 
-    // Unión de años: backend + extras, ordenados
+    // años futuros guardados con valor
+    const aniosFuturosBackend = (data?.valores ?? [])
+      .filter(
+        (v) =>
+          v.anio > ANIO_ACTUAL &&
+          v.mtb !== null,
+      )
+      .map((v) => v.anio);
+
     const todosAnios = [
       ...new Set([
-        ...(data?.valores ?? []).map((v) => v.anio),
+        ...aniosBase,
+        ...aniosFuturosBackend,
         ...aniosExtra,
       ]),
     ].sort((a, b) => a - b);
 
+    // detectar último año con MTB
+    const aniosConValor = todosAnios.filter((anio) => {
+      const backend = mapaBackend.get(anio);
+
+      const mtb =
+        cambios[anio] !== undefined
+          ? cambios[anio]
+          : backend?.mtb ?? null;
+
+      return mtb !== null;
+    });
+
+    const ultimoAnioConValor =
+      aniosConValor.length > 0
+        ? Math.max(...aniosConValor)
+        : null;
+
     let acumulado = 0;
+
     return todosAnios.map((anio) => {
       const backend = mapaBackend.get(anio);
-      const mtbVisible =
-        cambios[anio] !== undefined ? cambios[anio] : (backend?.mtb ?? null);
 
-      // ✅ Solo suma si tiene valor real — años vacíos no afectan acumulado
-      if (mtbVisible !== null) acumulado += mtbVisible;
+      const mtbVisible =
+        cambios[anio] !== undefined
+          ? cambios[anio]
+          : backend?.mtb ?? null;
+
+      if (mtbVisible !== null) {
+        acumulado += mtbVisible;
+      }
 
       return {
         id: backend?.id ?? 0,
+
         anio,
-        mtbOriginal: backend?.mtb ?? null,
+
         mtbVisible,
-        mtbAcumulado: acumulado,
+
+        mtbAcumulado:
+          ultimoAnioConValor !== null &&
+          anio <= ultimoAnioConValor
+            ? acumulado
+            : null,
+
+        esFuturo: anio > ANIO_ACTUAL,
       };
     });
-  }, [data?.valores, cambios, aniosExtra]);
+  }, [data?.valores, cambios, aniosExtra, aniosBase]);
 
+  /* =========================================
+     GUARDAR
+  ========================================= */
   const guardarMut = useApiMutation({
     mutationFn: () => {
-      const payload = Object.entries(cambios).map(([anio, mtb]) => ({
-        anio: Number(anio),
-        mtb,
-      }));
-      return desgasteApi.escenarios.guardarValores(escenarioId, { cambios: payload });
+      const payload = Object.entries(cambios).map(
+        ([anio, mtb]) => ({
+          anio: Number(anio),
+          mtb,
+        }),
+      );
+
+      return desgasteApi.escenarios.guardarValores(
+        escenarioId,
+        {
+          cambios: payload,
+        },
+      );
     },
+
     onSuccess: () => {
-      invalidate(['desgaste', 'escenarios', escenarioId, 'valores']);
+      invalidate([
+        'desgaste',
+        'escenarios',
+        escenarioId,
+        'valores',
+      ]);
+
       setCambios({});
       setAniosExtra([]);
     },
+
     mensajeExito: 'Valores guardados correctamente',
   });
 
+  /* =========================================
+     COLUMNS
+  ========================================= */
   const columns: ColumnDef<FilaMtb>[] = [
     {
       accessorKey: 'anio',
+
       header: 'Año',
+
       cell: ({ row }) => (
-        <span className="font-medium">{row.original.anio}</span>
+        <span className="font-mono text-[13px] font-medium tabular-nums">
+          {row.original.anio}
+        </span>
       ),
     },
+
     {
       accessorKey: 'mtbVisible',
+
       header: 'MTB anual',
+
       cell: ({ row }) => (
         <MtbInput
           anio={row.original.anio}
@@ -163,61 +284,126 @@ export function ValoresMtbPage() {
         />
       ),
     },
+
     {
       accessorKey: 'mtbAcumulado',
-      header: 'MTB acumulado',
+
+      header: () => (
+        <span className="block text-right">
+          MTB acumulado
+        </span>
+      ),
+
       cell: ({ row }) => {
         const v = row.original.mtbAcumulado;
-        return v > 0 ? (
-          <span className="font-medium tabular-nums">{v.toFixed(3)}</span>
+
+        return v !== null ? (
+          <span className="block text-right font-medium tabular-nums">
+            {v.toFixed(3)}
+          </span>
         ) : (
-          <span className="text-muted-foreground">—</span>
+          <span className="block text-right text-muted-foreground">
+            —
+          </span>
         );
       },
     },
+
+    {
+      id: 'acciones',
+
+      header: '',
+
+      cell: ({ row }) =>
+        row.original.esFuturo ? (
+          <div className="flex justify-end">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() =>
+                eliminarAnio(row.original.anio)
+              }
+            >
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          </div>
+        ) : null,
+    },
   ];
 
+  const hasCambios = Object.keys(cambios).length > 0;
+
+  /* =========================================
+     UI
+  ========================================= */
   return (
-    <div className="space-y-6">
-      <Button variant="ghost" onClick={() => navigate('/desgaste/escenarios')}>
-        <ArrowLeft className="mr-2 h-4 w-4" /> Volver a escenarios
-      </Button>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title={`Valores MTB · ${
+          data?.escenarioNombre ?? '…'
+        }`}
+        subtitle="Histórico fijo + proyección futura editable"
+        breadcrumb={[
+          { label: 'Desgaste' },
+          { label: 'Escenarios' },
+          { label: data?.escenarioNombre ?? '…' },
+        ]}
+        actions={
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                navigate('/desgaste/escenarios')
+              }
+            >
+              <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
+              Volver
+            </Button>
 
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">
-            Valores MTB: {data?.escenarioNombre ?? '...'}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Ingrese el MTB anual. El acumulado se calcula solo con los años que tienen dato.
-          </p>
-        </div>
-        {/* ✅ Botón para agregar año nuevo */}
-        <Button variant="outline" onClick={agregarAnio}>
-          <Plus className="mr-2 h-4 w-4" /> Agregar año
-        </Button>
-      </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={agregarAnio}
+            >
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
+              Agregar año futuro
+            </Button>
 
-      <DataTable
-        columns={columns}
-        data={filasMostradas}
-        loading={isLoading}
-        mensajeVacio="No hay valores. Use 'Agregar año' para comenzar."
+            {hasCambios && (
+              <Button
+                size="sm"
+                disabled={guardarMut.isPending}
+                onClick={() =>
+                  guardarMut.mutate(undefined)
+                }
+              >
+                <Save className="mr-1.5 h-3.5 w-3.5" />
+
+                {guardarMut.isPending
+                  ? 'Guardando…'
+                  : `Guardar ${
+                      Object.keys(cambios).length
+                    } cambio${
+                      Object.keys(cambios).length === 1
+                        ? ''
+                        : 's'
+                    }`}
+              </Button>
+            )}
+          </>
+        }
       />
 
-      {Object.keys(cambios).length > 0 && (
-        <div className="flex justify-end">
-          <Button
-            onClick={() => guardarMut.mutate(undefined)}
-            disabled={guardarMut.isPending}
-          >
-            <Save className="mr-2 h-4 w-4" />
-            {guardarMut.isPending
-              ? 'Guardando...'
-              : `Guardar ${Object.keys(cambios).length} cambios`}
-          </Button>
-        </div>
-      )}
+      <DataCard>
+        <DataTable
+          bare
+          columns={columns}
+          data={filasMostradas}
+          loading={isLoading}
+          mensajeVacio="No hay valores."
+        />
+      </DataCard>
     </div>
   );
 }

@@ -1,44 +1,34 @@
-/**
- * Página de Análisis de Fallas (KPIs + 3 gráficos).
- *
- * Persistencia de filtros (por gráfico):
- *  - sessionStorage: se mantiene mientras la pestaña esté abierta.
- *  - Logout o cerrar pestaña: se borra → próxima carga muestra la BASE del backend.
- *
- * Flujo:
- *  1. Primera visita en la sesión → sessionStorage vacío → frontend
- *     envía {} al backend → backend devuelve config BASE → se muestra.
- *  2. Usuario aplica filtros → se guarda en sessionStorage.
- *  3. F5 (recargar) → frontend lee de sessionStorage → muestra última config.
- *  4. Logout → AuthContext limpia sessionStorage → siguiente login muestra BASE.
- */
-
 import { useState, useEffect } from 'react';
+
+import { PageHeader } from '@/components/layout/page-header';
+import { ChartCard } from '@/components/shared/chart-card';
+import {
+  ConfigSheet,
+  ConfigSummaryChips,
+} from '@/components/shared/config-sheet';
+
 import { Grafico1EvolucionTemporal } from './components/grafico-1-evolucion-temporal';
 import { FiltrosGrafico1 } from './components/grafico-1-filtros';
 import { Grafico2Distribucion } from './components/grafico-2-distribucion';
 import { FiltrosGrafico2 } from './components/grafico-2-filtros';
 import { Grafico3Velocidad } from './components/grafico-3-velocidad';
 import { FiltrosGrafico3 } from './components/grafico-3-filtros';
+import { KpisFallas } from './components/kpis-fallas';
+
 import type { Grafico1Filtros } from './types/grafico-1.types';
 import type { Grafico2Filtros } from './types/grafico-2.types';
 import type { Grafico3Filtros } from './types/grafico-3.types';
+
 import { queryKeys } from '@/lib/query-keys';
 import { useApiQuery } from '@/hooks/use-api-query';
 import { fallasApi } from '@/lib/api/fallas.api';
-import { KpisFallas } from './components/kpis-fallas';
 
-// ✅ Claves para sessionStorage (se borran al cerrar pestaña o logout)
 const STORAGE_KEYS = {
   GRAFICO1: 'fallas_grafico1_config',
   GRAFICO2: 'fallas_grafico2_config',
   GRAFICO3: 'fallas_grafico3_config',
 };
 
-/**
- * Helper para leer sessionStorage de forma segura.
- * Si no hay nada o falla el JSON.parse, devuelve {}.
- */
 function leerConfig<T>(key: string): T {
   try {
     const saved = sessionStorage.getItem(key);
@@ -49,53 +39,31 @@ function leerConfig<T>(key: string): T {
 }
 
 export function FallasPage() {
-  // ============================================================
-  // KPIs
-  // ============================================================
+  // ── KPIs ────────────────────────────────────────────────────────────
   const { data: kpisData, isLoading: kpisLoading } = useApiQuery({
     queryKey: queryKeys.fallas.kpis(),
     queryFn: () => fallasApi.analytics.kpis(),
   });
 
-  // ============================================================
-  // GRÁFICO 1
-  // ============================================================
-  // ✅ Tanto config (filtros visibles) como configAplicada (lo que se envía al backend)
-  // arrancan desde sessionStorage. Esto soluciona el bug donde al recargar
-  // los filtros mostraban tu última config pero el gráfico se calculaba con {}.
-  const [grafico1Config, setGrafico1Config] = useState<Grafico1Filtros>(() =>
-    leerConfig<Grafico1Filtros>(STORAGE_KEYS.GRAFICO1),
+  // ── Estado de los 3 gráficos ────────────────────────────────────────
+  const [grafico1Config, setGrafico1Config] = useState<Grafico1Filtros>(
+    () => leerConfig(STORAGE_KEYS.GRAFICO1),
   );
   const [grafico1ConfigAplicada, setGrafico1ConfigAplicada] =
-    useState<Grafico1Filtros>(() =>
-      leerConfig<Grafico1Filtros>(STORAGE_KEYS.GRAFICO1),
-    );
+    useState<Grafico1Filtros>(() => leerConfig(STORAGE_KEYS.GRAFICO1));
 
-  // ============================================================
-  // GRÁFICO 2
-  // ============================================================
-  const [grafico2Config, setGrafico2Config] = useState<Grafico2Filtros>(() =>
-    leerConfig<Grafico2Filtros>(STORAGE_KEYS.GRAFICO2),
+  const [grafico2Config, setGrafico2Config] = useState<Grafico2Filtros>(
+    () => leerConfig(STORAGE_KEYS.GRAFICO2),
   );
   const [grafico2ConfigAplicada, setGrafico2ConfigAplicada] =
-    useState<Grafico2Filtros>(() =>
-      leerConfig<Grafico2Filtros>(STORAGE_KEYS.GRAFICO2),
-    );
+    useState<Grafico2Filtros>(() => leerConfig(STORAGE_KEYS.GRAFICO2));
 
-  // ============================================================
-  // GRÁFICO 3
-  // ============================================================
-  const [grafico3Config, setGrafico3Config] = useState<Grafico3Filtros>(() =>
-    leerConfig<Grafico3Filtros>(STORAGE_KEYS.GRAFICO3),
+  const [grafico3Config, setGrafico3Config] = useState<Grafico3Filtros>(
+    () => leerConfig(STORAGE_KEYS.GRAFICO3),
   );
   const [grafico3ConfigAplicada, setGrafico3ConfigAplicada] =
-    useState<Grafico3Filtros>(() =>
-      leerConfig<Grafico3Filtros>(STORAGE_KEYS.GRAFICO3),
-    );
+    useState<Grafico3Filtros>(() => leerConfig(STORAGE_KEYS.GRAFICO3));
 
-  // ============================================================
-  // QUERIES
-  // ============================================================
   const { data: grafico1Data, isLoading: grafico1Loading } = useApiQuery({
     queryKey: ['fallas', 'grafico-1', grafico1ConfigAplicada],
     queryFn: () => fallasApi.analytics.grafico1(grafico1ConfigAplicada),
@@ -111,12 +79,6 @@ export function FallasPage() {
     queryFn: () => fallasApi.analytics.grafico3(grafico3ConfigAplicada),
   });
 
-  // ============================================================
-  // SINCRONIZAR CONFIG CON BACKEND (primera vez)
-  // ============================================================
-  // Cuando el backend responde con `configAplicada`, sincronizamos
-  // los filtros visibles para que el usuario vea los defaults.
-  // Solo aplica en la primera carga (cuando config está vacío).
   useEffect(() => {
     if (grafico1Data?.configAplicada && esConfigVacia(grafico1Config)) {
       setGrafico1Config(grafico1Data.configAplicada);
@@ -153,9 +115,6 @@ export function FallasPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [grafico3Data]);
 
-  // ============================================================
-  // HANDLERS APLICAR
-  // ============================================================
   const handleAplicarGrafico1 = () => {
     setGrafico1ConfigAplicada(grafico1Config);
     sessionStorage.setItem(
@@ -163,7 +122,6 @@ export function FallasPage() {
       JSON.stringify(grafico1Config),
     );
   };
-
   const handleAplicarGrafico2 = () => {
     setGrafico2ConfigAplicada(grafico2Config);
     sessionStorage.setItem(
@@ -171,7 +129,6 @@ export function FallasPage() {
       JSON.stringify(grafico2Config),
     );
   };
-
   const handleAplicarGrafico3 = () => {
     setGrafico3ConfigAplicada(grafico3Config);
     sessionStorage.setItem(
@@ -181,83 +138,194 @@ export function FallasPage() {
   };
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold">Análisis de Fallas</h1>
-        <p className="text-sm text-muted-foreground">
-          Indicadores y gráficos de fallas de riel y soldadura inox
-        </p>
-      </div>
+    <div className="flex flex-col gap-8">
+      <PageHeader
+        title="Análisis de Fallas"
+        subtitle="Indicadores y gráficos de fallas de riel y soldadura inox"
+        breadcrumb={[{ label: 'Fallas' }, { label: 'Análisis' }]}
+      />
 
-      {/* KPIs */}
-      <div>
-        <h2 className="text-xl font-semibold mb-4">Indicadores</h2>
-        <KpisFallas data={kpisData || null} isLoading={kpisLoading} />
-      </div>
+      <KpisFallas data={kpisData || null} isLoading={kpisLoading} />
 
-      {/* Gráfico 1 */}
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold">
-          Gráfico 1 — Evolución Temporal por Tramo
-        </h2>
-        <FiltrosGrafico1
-          config={grafico1Config}
-          onChange={setGrafico1Config}
-          onAplicar={handleAplicarGrafico1}
-          isLoading={grafico1Loading}
-        />
-        <Grafico1EvolucionTemporal
-          data={grafico1Data || null}
-          isLoading={grafico1Loading}
-        />
-      </div>
+      {/* GRÁFICO 1 */}
+      <ChartCard
+        eyebrow="Gráfico 1"
+        title="Evolución temporal por tramo"
+        description="Cantidad de fallas registradas a lo largo del tiempo, segmentado por tramo."
+        loading={grafico1Loading && !grafico1Data}
+        minHeight={360}
+      >
+        <ConfigSheet
+          title="Configurar evolución temporal"
+          description="Ajusta granularidad, rango temporal y filtros del gráfico."
+          triggerLabel="Configurar gráfico"
+          size="xl"
+          summary={
+            <ConfigSummaryChips
+              items={[
+                { label: 'Granularidad', value: grafico1ConfigAplicada.granularidad },
+                {
+                  label: 'Año',
+                  value:
+                    grafico1ConfigAplicada.granularidad === 'MENSUAL'
+                      ? grafico1ConfigAplicada.anio
+                      : grafico1ConfigAplicada.anioInicio && grafico1ConfigAplicada.anioFin
+                        ? `${grafico1ConfigAplicada.anioInicio}–${grafico1ConfigAplicada.anioFin}`
+                        : undefined,
+                },
+                { label: 'Tipo falla', value: grafico1ConfigAplicada.tipoFalla },
+                { label: 'Vía', value: grafico1ConfigAplicada.tipoVia },
+                {
+                  label: 'Tramos',
+                  value: grafico1ConfigAplicada.tramoIds?.length
+                    ? `${grafico1ConfigAplicada.tramoIds.length} sel.`
+                    : undefined,
+                },
+              ]}
+            />
+          }
+        >
+          {(close) => (
+            <FiltrosGrafico1
+              config={grafico1Config}
+              onChange={setGrafico1Config}
+              onAplicar={() => {
+                handleAplicarGrafico1();
+                close();
+              }}
+              isLoading={grafico1Loading}
+            />
+          )}
+        </ConfigSheet>
 
-      {/* Gráfico 2 */}
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold">
-          Gráfico 2 — Distribución por Categoría
-        </h2>
-        <FiltrosGrafico2
-          config={grafico2Config}
-          onChange={setGrafico2Config}
-          onAplicar={handleAplicarGrafico2}
-          isLoading={grafico2Loading}
-        />
-        <Grafico2Distribucion
-          data={grafico2Data || null}
-          isLoading={grafico2Loading}
-        />
-      </div>
+        <div className="mt-4">
+          <Grafico1EvolucionTemporal
+            data={grafico1Data || null}
+            isLoading={grafico1Loading}
+          />
+        </div>
+      </ChartCard>
 
-      {/* Gráfico 3 */}
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold">
-          Gráfico 3 — Fallas por Velocidad
-        </h2>
-        <FiltrosGrafico3
-          config={grafico3Config}
-          onChange={setGrafico3Config}
-          onAplicar={handleAplicarGrafico3}
-          isLoading={grafico3Loading}
-        />
-        <Grafico3Velocidad
-          data={grafico3Data || null}
-          isLoading={grafico3Loading}
-        />
-      </div>
+      {/* GRÁFICO 2 */}
+      <ChartCard
+        eyebrow="Gráfico 2"
+        title="Distribución por categoría"
+        description="Proporción de fallas agrupadas según la categoría seleccionada."
+        loading={grafico2Loading && !grafico2Data}
+        minHeight={360}
+      >
+        <ConfigSheet
+          title="Configurar distribución"
+          description="Define rango temporal, tipo de falla y categoría de agrupación."
+          triggerLabel="Configurar gráfico"
+          size="xl"
+          summary={
+            <ConfigSummaryChips
+              items={[
+                {
+                  label: 'Rango',
+                  value:
+                    grafico2ConfigAplicada.fechaDesde && grafico2ConfigAplicada.fechaHasta
+                      ? `${grafico2ConfigAplicada.fechaDesde} → ${grafico2ConfigAplicada.fechaHasta}`
+                      : undefined,
+                },
+                { label: 'Tipo falla', value: grafico2ConfigAplicada.tipoFalla },
+                { label: 'Categoría', value: grafico2ConfigAplicada.categoria },
+                { label: 'Vía', value: grafico2ConfigAplicada.tipoVia },
+                {
+                  label: 'Tramos',
+                  value: grafico2ConfigAplicada.tramoIds?.length
+                    ? `${grafico2ConfigAplicada.tramoIds.length} sel.`
+                    : undefined,
+                },
+              ]}
+            />
+          }
+        >
+          {(close) => (
+            <FiltrosGrafico2
+              config={grafico2Config}
+              onChange={setGrafico2Config}
+              onAplicar={() => {
+                handleAplicarGrafico2();
+                close();
+              }}
+              isLoading={grafico2Loading}
+            />
+          )}
+        </ConfigSheet>
+
+        <div className="mt-4">
+          <Grafico2Distribucion
+            data={grafico2Data || null}
+            isLoading={grafico2Loading}
+          />
+        </div>
+      </ChartCard>
+
+      {/* GRÁFICO 3 */}
+      <ChartCard
+        eyebrow="Gráfico 3"
+        title="Fallas por velocidad"
+        description="Correlación entre velocidad operacional y cantidad de fallas."
+        loading={grafico3Loading && !grafico3Data}
+        minHeight={360}
+      >
+        <ConfigSheet
+          title="Configurar fallas por velocidad"
+          description="Ajusta rango, tipos y visualización del gráfico de velocidad."
+          triggerLabel="Configurar gráfico"
+          size="xl"
+          summary={
+            <ConfigSummaryChips
+              items={[
+                {
+                  label: 'Rango',
+                  value:
+                    grafico3ConfigAplicada.fechaDesde && grafico3ConfigAplicada.fechaHasta
+                      ? `${grafico3ConfigAplicada.fechaDesde} → ${grafico3ConfigAplicada.fechaHasta}`
+                      : undefined,
+                },
+                { label: 'Tipo falla', value: grafico3ConfigAplicada.tipoFalla },
+                { label: 'Vía', value: grafico3ConfigAplicada.tipoVia },
+                {
+                  label: 'Apilar',
+                  value: grafico3ConfigAplicada.apilarPorTipo ? 'Sí' : undefined,
+                },
+                {
+                  label: 'Tramos',
+                  value: grafico3ConfigAplicada.tramoIds?.length
+                    ? `${grafico3ConfigAplicada.tramoIds.length} sel.`
+                    : undefined,
+                },
+              ]}
+            />
+          }
+        >
+          {(close) => (
+            <FiltrosGrafico3
+              config={grafico3Config}
+              onChange={setGrafico3Config}
+              onAplicar={() => {
+                handleAplicarGrafico3();
+                close();
+              }}
+              isLoading={grafico3Loading}
+            />
+          )}
+        </ConfigSheet>
+
+        <div className="mt-4">
+          <Grafico3Velocidad
+            data={grafico3Data || null}
+            isLoading={grafico3Loading}
+          />
+        </div>
+      </ChartCard>
     </div>
   );
 }
 
-// ============================================================
-// HELPERS LOCALES
-// ============================================================
-
-/**
- * Determina si una config está "vacía" (sin filtros aplicados).
- * Usado para sincronizar los filtros visibles con la BASE del backend
- * en la primera carga.
- */
 function esConfigVacia(config: object): boolean {
   return Object.keys(config).length === 0;
 }

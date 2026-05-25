@@ -20,12 +20,24 @@ import {
 import { ImagenesUploader } from '@/features/fallas/components/imagenes-uploader';
 import { ImagenesGaleria } from './imagenes-galeria';
 
-export function FallaSoldaduraDetallePage() {
-  const { id } = useParams<{ id: string }>();
+interface FallaSoldaduraDetallePageProps {
+  /** Si se provee, se usa este id en lugar de useParams. */
+  idOverride?: number;
+  /** Callback cuando se cierra. */
+  onClose?: () => void;
+  /** Callback para abrir la edición. */
+  onEditar?: (id: number) => void;
+}
+
+export function FallaSoldaduraDetallePage(props: FallaSoldaduraDetallePageProps = {}) {
+  const { idOverride, onClose, onEditar } = props;
+  const isEmbedded = idOverride !== undefined || !!onClose || !!onEditar;
+
+  const { id: idParam } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [mostrarConfirmar, setMostrarConfirmar] = useState(false);
 
-  const fallaId = Number(id);
+  const fallaId = idOverride ?? Number(idParam);
   const { data: falla, isLoading } = useFallaSoldadura(fallaId);
   const eliminarMut = useEliminarFallaSoldadura();
 
@@ -37,38 +49,67 @@ export function FallaSoldaduraDetallePage() {
     return (
       <div className="p-4 space-y-2">
         <p>Falla no encontrada.</p>
-        <Button asChild variant="outline">
-          <Link to="/fallas/soldadura">Volver al listado</Link>
-        </Button>
+        {onClose ? (
+          <Button variant="outline" onClick={onClose}>Cerrar</Button>
+        ) : (
+          <Button asChild variant="outline">
+            <Link to="/fallas/soldadura">Volver al listado</Link>
+          </Button>
+        )}
       </div>
     );
   }
 
   const handleEliminar = async () => {
     await eliminarMut.mutateAsync(fallaId);
-    navigate('/fallas/soldadura');
+    if (onClose) {
+      onClose();
+    } else {
+      navigate('/fallas/soldadura');
+    }
   };
 
   return (
-    <div className="pagina-detalle-soldadura p-4 space-y-4">
-      {/* Header */}
-      <header className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-2xl font-bold">Falla Soldadura #{falla.id}</h1>
-        <div className="flex gap-2">
-          <Button asChild variant="outline">
-            <Link to="/fallas/soldadura">Volver</Link>
-          </Button>
-          <Button asChild>
-            <Link to={`/fallas/soldadura/${falla.id}/editar`}>Editar</Link>
+    <div className={isEmbedded ? 'space-y-4' : 'pagina-detalle-soldadura p-4 space-y-4'}>
+      {!isEmbedded && (
+        <header className="flex items-center justify-between flex-wrap gap-2">
+          <h1 className="text-2xl font-bold">Falla Soldadura #{falla.id}</h1>
+          <div className="flex gap-2">
+            <Button asChild variant="outline">
+              <Link to="/fallas/soldadura">Volver</Link>
+            </Button>
+            <Button asChild>
+              <Link to={`/fallas/soldadura/${falla.id}/editar`}>Editar</Link>
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => setMostrarConfirmar(true)}
+            >
+              Eliminar
+            </Button>
+          </div>
+        </header>
+      )}
+
+      {isEmbedded && (
+        <div className="flex flex-wrap items-center justify-end gap-2 border-b border-border pb-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => (onEditar ? onEditar(falla.id) : null)}
+            disabled={!onEditar}
+          >
+            Editar
           </Button>
           <Button
             variant="destructive"
+            size="sm"
             onClick={() => setMostrarConfirmar(true)}
           >
             Eliminar
           </Button>
         </div>
-      </header>
+      )}
 
       {/* Datos principales */}
       <Card className="p-4 space-y-3">

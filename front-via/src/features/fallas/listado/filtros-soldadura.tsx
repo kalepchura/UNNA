@@ -3,8 +3,6 @@
  */
 
 import { MultiSelect } from '@/components/ui/multi-select';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -13,6 +11,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  FiltersToolbar,
+  FiltersGrid,
+  FilterField,
+  DateInput,
+} from '@/components/shared/filters-toolbar';
 import { useCambiaviasOptions } from '@/hooks/use-cambiavias-options';
 import { useTramosOptions } from '@/hooks/use-tramos-options';
 import { TipoVia, UbicacionFalla, AccionFalla } from '@/lib/types/common';
@@ -39,54 +43,56 @@ export function FiltrosSoldadura({
     onChange({ ...filtros, [campo]: valor, page: 1 });
   };
 
-  // Conversiones IDs (number[]) ↔ strings (para MultiSelect)
   const cambiaviaIdsAsString = (filtros.cambiaviaIds ?? []).map(String);
   const tramoIdsAsString = (filtros.tramoIds ?? []).map(String);
   const accionesAsString = (filtros.acciones ?? []) as string[];
 
-  // Opciones del enum AccionFalla como options
   const accionesOptions = Object.values(AccionFalla).map((v) => ({
     value: v,
     label: v,
   }));
 
+  const activeCount = countActive(filtros);
+
   return (
-    <div className="filtros-section">
-      <div className="grid gap-4 md:grid-cols-3">
-        {/* Cambiavías */}
-        <div className="filtro-campo">
-          <Label>Cambiavías</Label>
+    <FiltersToolbar
+      description="Refina el listado por cambiavía, acción, vía o rango de fechas."
+      activeCount={activeCount}
+      onClear={activeCount > 0 ? onLimpiar : undefined}
+      collapsible
+      secondaryAction={
+        activeCount > 0 ? (
+          <Button variant="outline" size="sm" onClick={onLimpiar}>
+            Limpiar filtros
+          </Button>
+        ) : undefined
+      }
+    >
+      <FiltersGrid columns={3}>
+        <FilterField label="Cambiavías">
           <MultiSelect
             options={cambiaviasOptions}
             selected={cambiaviaIdsAsString}
-            onChange={(vals) =>
-              actualizar('cambiaviaIds', vals.map(Number))
-            }
+            onChange={(vals) => actualizar('cambiaviaIds', vals.map(Number))}
             showAllOption
             allOptionLabel="Todos los cambiavías"
             itemLabelSingular="cambiavía"
             itemLabelPlural="cambiavías"
           />
-        </div>
+        </FilterField>
 
-        {/* Tramos */}
-        <div className="filtro-campo">
-          <Label>Tramos</Label>
+        <FilterField label="Tramos">
           <MultiSelect
             options={tramosOptions}
             selected={tramoIdsAsString}
-            onChange={(vals) =>
-              actualizar('tramoIds', vals.map(Number))
-            }
+            onChange={(vals) => actualizar('tramoIds', vals.map(Number))}
             showAllOption
             allOptionLabel="Todos los tramos"
             itemLabelSingular="tramo"
           />
-        </div>
+        </FilterField>
 
-        {/* Acciones (multi-select) */}
-        <div className="filtro-campo">
-          <Label>Acciones</Label>
+        <FilterField label="Acciones">
           <MultiSelect
             options={accionesOptions}
             selected={accionesAsString}
@@ -98,11 +104,9 @@ export function FiltrosSoldadura({
             itemLabelSingular="acción"
             itemLabelPlural="acciones"
           />
-        </div>
+        </FilterField>
 
-        {/* Vía */}
-        <div className="filtro-campo">
-          <Label>Vía</Label>
+        <FilterField label="Vía">
           <Select
             value={filtros.via ?? 'TODAS'}
             onValueChange={(v) =>
@@ -120,11 +124,9 @@ export function FiltrosSoldadura({
               <SelectItem value={TipoVia.CERO}>CERO</SelectItem>
             </SelectContent>
           </Select>
-        </div>
+        </FilterField>
 
-        {/* Ubicación de falla */}
-        <div className="filtro-campo">
-          <Label>Ubicación de falla</Label>
+        <FilterField label="Ubicación de falla">
           <Select
             value={filtros.ubicacionFalla ?? 'TODAS'}
             onValueChange={(v) =>
@@ -145,44 +147,42 @@ export function FiltrosSoldadura({
               <SelectItem value={UbicacionFalla.RIEL}>Riel</SelectItem>
             </SelectContent>
           </Select>
-        </div>
+        </FilterField>
 
-        {/* Espacio vacío para alinear */}
-        <div />
+        <div className="hidden lg:block" />
 
-        {/* Fecha desde */}
-        <div className="filtro-campo">
-          <Label htmlFor="fechaDesde">Fecha desde</Label>
-          <Input
-            id="fechaDesde"
-            type="date"
+        <FilterField label="Fecha desde" htmlFor="fechaDesde-sold">
+          <DateInput
+            id="fechaDesde-sold"
             value={filtros.fechaDesde ?? ''}
             onChange={(e) =>
               actualizar('fechaDesde', e.target.value || undefined)
             }
           />
-        </div>
+        </FilterField>
 
-        {/* Fecha hasta */}
-        <div className="filtro-campo">
-          <Label htmlFor="fechaHasta">Fecha hasta</Label>
-          <Input
-            id="fechaHasta"
-            type="date"
+        <FilterField label="Fecha hasta" htmlFor="fechaHasta-sold">
+          <DateInput
+            id="fechaHasta-sold"
             value={filtros.fechaHasta ?? ''}
             onChange={(e) =>
               actualizar('fechaHasta', e.target.value || undefined)
             }
           />
-        </div>
-
-        {/* Botón limpiar */}
-        <div className="filtro-campo flex items-end">
-          <Button variant="outline" onClick={onLimpiar} className="w-full">
-            Limpiar filtros
-          </Button>
-        </div>
-      </div>
-    </div>
+        </FilterField>
+      </FiltersGrid>
+    </FiltersToolbar>
   );
+}
+
+function countActive(f: FiltrosFallaSoldadura): number {
+  let n = 0;
+  if (f.cambiaviaIds?.length) n++;
+  if (f.tramoIds?.length) n++;
+  if (f.acciones?.length) n++;
+  if (f.via) n++;
+  if (f.ubicacionFalla) n++;
+  if (f.fechaDesde) n++;
+  if (f.fechaHasta) n++;
+  return n;
 }

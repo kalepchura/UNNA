@@ -1,4 +1,12 @@
 import { useState, useEffect } from 'react';
+
+import { PageHeader } from '@/components/layout/page-header';
+import { ChartCard } from '@/components/shared/chart-card';
+import {
+  ConfigSheet,
+  ConfigSummaryChips,
+} from '@/components/shared/config-sheet';
+
 import { KpisTemperatura } from './components/kpis-temperatura';
 import { Grafico1TempSerieTemporal } from './components/grafico-1-temp-serie-temporal';
 import { FiltrosGrafico1Temp } from './components/grafico-1-temp-filtros';
@@ -6,9 +14,11 @@ import { Grafico2TempComparacion } from './components/grafico-2-temp-comparacion
 import { FiltrosGrafico2Temp } from './components/grafico-2-temp-filtros';
 import { Grafico3TempPatronHorario } from './components/grafico-3-temp-patron-horario';
 import { FiltrosGrafico3Temp } from './components/grafico-3-temp-filtros';
+
 import type { Grafico1TempFiltros } from './types/grafico-1.types';
 import type { Grafico2TempFiltros } from './types/grafico-2.types';
 import type { Grafico3TempFiltros } from './types/grafico-3.types';
+
 import { queryKeys } from '@/lib/query-keys';
 import { useApiQuery } from '@/hooks/use-api-query';
 import { temperaturaApi } from '@/lib/api/temperatura.api';
@@ -29,19 +39,13 @@ function leerConfig<T>(key: string): T {
 }
 
 export function TemperaturaPage() {
-  // ============================================================
-  // KPIs
-  // ============================================================
   const { data: kpisData, isLoading: kpisLoading } = useApiQuery({
     queryKey: queryKeys.temperatura.kpis(),
     queryFn: () => temperaturaApi.analytics.kpis(),
   });
 
-  // ============================================================
-  // GRÁFICO 1
-  // ============================================================
-  const [grafico1Config, setGrafico1Config] = useState<Grafico1TempFiltros>(() =>
-    leerConfig(STORAGE_KEYS.GRAFICO1),
+  const [grafico1Config, setGrafico1Config] = useState<Grafico1TempFiltros>(
+    () => leerConfig(STORAGE_KEYS.GRAFICO1),
   );
   const [grafico1ConfigAplicada, setGrafico1ConfigAplicada] =
     useState<Grafico1TempFiltros>(() => leerConfig(STORAGE_KEYS.GRAFICO1));
@@ -52,24 +56,30 @@ export function TemperaturaPage() {
   });
 
   useEffect(() => {
-    if (grafico1Data?.configAplicada && esConfigVacia(grafico1Config)) {
+    if (
+      grafico1Data?.configAplicada &&
+      Object.keys(grafico1ConfigAplicada).length === 0
+    ) {
       setGrafico1Config(grafico1Data.configAplicada);
       setGrafico1ConfigAplicada(grafico1Data.configAplicada);
-      sessionStorage.setItem(STORAGE_KEYS.GRAFICO1, JSON.stringify(grafico1Data.configAplicada));
+      sessionStorage.setItem(
+        STORAGE_KEYS.GRAFICO1,
+        JSON.stringify(grafico1Data.configAplicada),
+      );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [grafico1Data]);
 
   const handleAplicarGrafico1 = () => {
     setGrafico1ConfigAplicada(grafico1Config);
-    sessionStorage.setItem(STORAGE_KEYS.GRAFICO1, JSON.stringify(grafico1Config));
+    sessionStorage.setItem(
+      STORAGE_KEYS.GRAFICO1,
+      JSON.stringify(grafico1Config),
+    );
   };
 
-  // ============================================================
-  // GRÁFICO 2
-  // ============================================================
-  const [grafico2Config, setGrafico2Config] = useState<Grafico2TempFiltros>(() =>
-    leerConfig(STORAGE_KEYS.GRAFICO2),
+  const [grafico2Config, setGrafico2Config] = useState<Grafico2TempFiltros>(
+    () => leerConfig(STORAGE_KEYS.GRAFICO2),
   );
   const [grafico2ConfigAplicada, setGrafico2ConfigAplicada] =
     useState<Grafico2TempFiltros>(() => leerConfig(STORAGE_KEYS.GRAFICO2));
@@ -80,24 +90,30 @@ export function TemperaturaPage() {
   });
 
   useEffect(() => {
-    if (grafico2Data?.configAplicada && esConfigVacia(grafico2Config)) {
+    if (
+      grafico2Data?.configAplicada &&
+      Object.keys(grafico2ConfigAplicada).length === 0
+    ) {
       setGrafico2Config(grafico2Data.configAplicada);
       setGrafico2ConfigAplicada(grafico2Data.configAplicada);
-      sessionStorage.setItem(STORAGE_KEYS.GRAFICO2, JSON.stringify(grafico2Data.configAplicada));
+      sessionStorage.setItem(
+        STORAGE_KEYS.GRAFICO2,
+        JSON.stringify(grafico2Data.configAplicada),
+      );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [grafico2Data]);
 
   const handleAplicarGrafico2 = () => {
     setGrafico2ConfigAplicada(grafico2Config);
-    sessionStorage.setItem(STORAGE_KEYS.GRAFICO2, JSON.stringify(grafico2Config));
+    sessionStorage.setItem(
+      STORAGE_KEYS.GRAFICO2,
+      JSON.stringify(grafico2Config),
+    );
   };
 
-  // ============================================================
-  // GRÁFICO 3
-  // ============================================================
-  const [grafico3Config, setGrafico3Config] = useState<Grafico3TempFiltros>(() =>
-    leerConfig(STORAGE_KEYS.GRAFICO3),
+  const [grafico3Config, setGrafico3Config] = useState<Grafico3TempFiltros>(
+    () => leerConfig(STORAGE_KEYS.GRAFICO3),
   );
   const [grafico3ConfigAplicada, setGrafico3ConfigAplicada] =
     useState<Grafico3TempFiltros>(() => leerConfig(STORAGE_KEYS.GRAFICO3));
@@ -108,88 +124,199 @@ export function TemperaturaPage() {
   });
 
   useEffect(() => {
-    if (grafico3Data?.configAplicada && esConfigVacia(grafico3Config)) {
+    if (
+      grafico3Data?.configAplicada &&
+      Object.keys(grafico3ConfigAplicada).length === 0
+    ) {
       setGrafico3Config(grafico3Data.configAplicada);
       setGrafico3ConfigAplicada(grafico3Data.configAplicada);
-      sessionStorage.setItem(STORAGE_KEYS.GRAFICO3, JSON.stringify(grafico3Data.configAplicada));
+      sessionStorage.setItem(
+        STORAGE_KEYS.GRAFICO3,
+        JSON.stringify(grafico3Data.configAplicada),
+      );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [grafico3Data]);
 
   const handleAplicarGrafico3 = () => {
     setGrafico3ConfigAplicada(grafico3Config);
-    sessionStorage.setItem(STORAGE_KEYS.GRAFICO3, JSON.stringify(grafico3Config));
+    sessionStorage.setItem(
+      STORAGE_KEYS.GRAFICO3,
+      JSON.stringify(grafico3Config),
+    );
   };
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold">Análisis de Temperatura</h1>
-        <p className="text-sm text-muted-foreground">
-          Indicadores y gráficos de temperatura
-        </p>
-      </div>
+    <div className="flex flex-col gap-8">
+      <PageHeader
+        title="Análisis de Temperatura"
+        subtitle="Indicadores y series temporales de temperatura por tramo"
+        breadcrumb={[{ label: 'Temperatura' }, { label: 'Análisis' }]}
+      />
 
-      {/* KPIs */}
-      <div>
-        <h2 className="text-xl font-semibold mb-4">Indicadores</h2>
-        <KpisTemperatura data={kpisData || null} isLoading={kpisLoading} />
-      </div>
+      <KpisTemperatura data={kpisData || null} isLoading={kpisLoading} />
 
-      {/* Gráfico 1 */}
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold">
-          Gráfico 1 — Evolución Temporal por Tramo
-        </h2>
-        <FiltrosGrafico1Temp
-          config={grafico1Config}
-          onChange={setGrafico1Config}
-          onAplicar={handleAplicarGrafico1}
-          isLoading={grafico1Loading}
-        />
-        <Grafico1TempSerieTemporal
-          data={grafico1Data || null}
-          isLoading={grafico1Loading}
-        />
-      </div>
+      <ChartCard
+        eyebrow="Gráfico 1"
+        title="Evolución temporal por tramo"
+        description="Serie temporal de la temperatura registrada en cada tramo."
+        loading={grafico1Loading && !grafico1Data}
+        minHeight={360}
+      >
+        <ConfigSheet
+          title="Configurar evolución temporal"
+          description="Ajusta granularidad y filtros de la serie."
+          triggerLabel="Configurar gráfico"
+          size="xl"
+          summary={
+            <ConfigSummaryChips
+              items={[
+                { label: 'Granularidad', value: grafico1ConfigAplicada.granularidad },
+                {
+                  label: 'Año',
+                  value:
+                    grafico1ConfigAplicada.granularidad === 'MENSUAL'
+                      ? grafico1ConfigAplicada.anio
+                      : grafico1ConfigAplicada.anioInicio && grafico1ConfigAplicada.anioFin
+                        ? `${grafico1ConfigAplicada.anioInicio}–${grafico1ConfigAplicada.anioFin}`
+                        : undefined,
+                },
+                {
+                  label: 'Tramos',
+                  value: grafico1ConfigAplicada.tramoIds?.length
+                    ? `${grafico1ConfigAplicada.tramoIds.length} sel.`
+                    : undefined,
+                },
+              ]}
+            />
+          }
+        >
+          {(close) => (
+            <FiltrosGrafico1Temp
+              config={grafico1Config}
+              onChange={setGrafico1Config}
+              onAplicar={() => {
+                handleAplicarGrafico1();
+                close();
+              }}
+              isLoading={grafico1Loading}
+            />
+          )}
+        </ConfigSheet>
 
-      {/* Gráfico 2 */}
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold">
-          Gráfico 2 — Comparación entre Tramos
-        </h2>
-        <FiltrosGrafico2Temp
-          config={grafico2Config}
-          onChange={setGrafico2Config}
-          onAplicar={handleAplicarGrafico2}
-          isLoading={grafico2Loading}
-        />
-        <Grafico2TempComparacion
-          data={grafico2Data || null}
-          isLoading={grafico2Loading}
-        />
-      </div>
+        <div className="mt-4">
+          <Grafico1TempSerieTemporal
+            data={grafico1Data || null}
+            isLoading={grafico1Loading}
+          />
+        </div>
+      </ChartCard>
 
-      {/* Gráfico 3 */}
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold">
-          Gráfico 3 — Patrón Horario
-        </h2>
-        <FiltrosGrafico3Temp
-          config={grafico3Config}
-          onChange={setGrafico3Config}
-          onAplicar={handleAplicarGrafico3}
-          isLoading={grafico3Loading}
-        />
-        <Grafico3TempPatronHorario
-          data={grafico3Data || null}
-          isLoading={grafico3Loading}
-        />
-      </div>
+      <ChartCard
+        eyebrow="Gráfico 2"
+        title="Comparación entre tramos"
+        description="Distribución comparada de temperaturas para los tramos seleccionados."
+        loading={grafico2Loading && !grafico2Data}
+        minHeight={360}
+      >
+        <ConfigSheet
+          title="Configurar comparación"
+          description="Selecciona rango temporal y tramos a comparar."
+          triggerLabel="Configurar gráfico"
+          size="lg"
+          summary={
+            <ConfigSummaryChips
+              items={[
+                {
+                  label: 'Rango',
+                  value:
+                    grafico2ConfigAplicada.fechaDesde && grafico2ConfigAplicada.fechaHasta
+                      ? `${grafico2ConfigAplicada.fechaDesde} → ${grafico2ConfigAplicada.fechaHasta}`
+                      : undefined,
+                },
+                {
+                  label: 'Tramos',
+                  value: grafico2ConfigAplicada.tramoIds?.length
+                    ? `${grafico2ConfigAplicada.tramoIds.length} sel.`
+                    : undefined,
+                },
+              ]}
+            />
+          }
+        >
+          {(close) => (
+            <FiltrosGrafico2Temp
+              config={grafico2Config}
+              onChange={setGrafico2Config}
+              onAplicar={() => {
+                handleAplicarGrafico2();
+                close();
+              }}
+              isLoading={grafico2Loading}
+            />
+          )}
+        </ConfigSheet>
+
+        <div className="mt-4">
+          <Grafico2TempComparacion
+            data={grafico2Data || null}
+            isLoading={grafico2Loading}
+          />
+        </div>
+      </ChartCard>
+
+      <ChartCard
+        eyebrow="Gráfico 3"
+        title="Patrón horario"
+        description="Distribución de temperatura promedio por hora del día."
+        loading={grafico3Loading && !grafico3Data}
+        minHeight={360}
+      >
+        <ConfigSheet
+          title="Configurar patrón horario"
+          description="Ajusta rango temporal y tramos del análisis."
+          triggerLabel="Configurar gráfico"
+          size="lg"
+          summary={
+            <ConfigSummaryChips
+              items={[
+                {
+                  label: 'Rango',
+                  value:
+                    grafico3ConfigAplicada.fechaDesde && grafico3ConfigAplicada.fechaHasta
+                      ? `${grafico3ConfigAplicada.fechaDesde} → ${grafico3ConfigAplicada.fechaHasta}`
+                      : undefined,
+                },
+                {
+                  label: 'Tramos',
+                  value: grafico3ConfigAplicada.tramoIds?.length
+                    ? `${grafico3ConfigAplicada.tramoIds.length} sel.`
+                    : undefined,
+                },
+              ]}
+            />
+          }
+        >
+          {(close) => (
+            <FiltrosGrafico3Temp
+              config={grafico3Config}
+              onChange={setGrafico3Config}
+              onAplicar={() => {
+                handleAplicarGrafico3();
+                close();
+              }}
+              isLoading={grafico3Loading}
+            />
+          )}
+        </ConfigSheet>
+
+        <div className="mt-4">
+          <Grafico3TempPatronHorario
+            data={grafico3Data || null}
+            isLoading={grafico3Loading}
+          />
+        </div>
+      </ChartCard>
     </div>
   );
-}
-
-function esConfigVacia(config: object): boolean {
-  return Object.keys(config).length === 0;
 }
