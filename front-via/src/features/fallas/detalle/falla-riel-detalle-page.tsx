@@ -13,6 +13,15 @@
  *  - Botón "Editar" de cada acción → abre modal en modo EDITAR
  *  - Botón "Eliminar" de cada acción → abre ConfirmDialog
  *
+ * FIX (bug modal datos viejos):
+ *  - accionEditando ya NO guarda el objeto completo de la acción.
+ *    Solo guarda el ID (accionEditandoId: number | null).
+ *  - AccionRielModal recibe la acción buscada DESDE el query fresco
+ *    (falla.acciones.find), no desde un snapshot del estado local.
+ *  - Así, si el refetch del detalle actualiza falla.acciones antes
+ *    de que el usuario abra el modal, el form siempre tiene datos
+ *    actualizados.
+ *
  * Filosofía de diseño:
  *  - Se muestran TODOS los campos siempre, aunque estén vacíos o
  *    en SIN_DEFINIR. Esto le permite al ingeniero ver qué falta
@@ -72,11 +81,13 @@ export function FallaRielDetallePage(props: FallaRielDetallePageProps = {}) {
   const navigate = useNavigate();
   const [mostrarConfirmar, setMostrarConfirmar] = useState(false);
 
-  // FASE 5 — Estado del modal de acción
+  // FASE 5 — Estado del modal de acción.
+  //
+  // FIX: guardamos solo el ID de la acción a editar (o null para crear),
+  // NO el objeto completo. El objeto se deriva del query fresco cada render,
+  // evitando que el modal abra con un snapshot desactualizado del estado local.
   const [modalAccionAbierto, setModalAccionAbierto] = useState(false);
-  const [accionEditando, setAccionEditando] = useState<AccionRielResponse | null>(
-    null,
-  );
+  const [accionEditandoId, setAccionEditandoId] = useState<number | null>(null);
   const [accionAEliminar, setAccionAEliminar] = useState<AccionRielResponse | null>(
     null,
   );
@@ -85,6 +96,14 @@ export function FallaRielDetallePage(props: FallaRielDetallePageProps = {}) {
   const { data: falla, isLoading } = useFallaRiel(fallaId);
   const eliminarFallaMut = useEliminarFallaRiel();
   const eliminarAccionMut = useEliminarAccionRiel();
+
+  // FIX: derivamos la acción a editar desde falla.acciones (query fresco),
+  // no desde un useState con el objeto completo. Así el modal siempre ve
+  // datos actualizados aunque el refetch ocurra mientras está abierto.
+  const accionEditando: AccionRielResponse | null =
+    accionEditandoId !== null
+      ? (falla?.acciones?.find((a) => a.id === accionEditandoId) ?? null)
+      : null;
 
   if (isLoading) {
     return <p className="p-4">Cargando falla...</p>;
@@ -110,13 +129,22 @@ export function FallaRielDetallePage(props: FallaRielDetallePageProps = {}) {
   // ============================================================
 
   const handleNuevaAccion = () => {
-    setAccionEditando(null); // Modo CREAR
+    setAccionEditandoId(null); // Modo CREAR: sin id seleccionado
     setModalAccionAbierto(true);
   };
 
   const handleEditarAccion = (accion: AccionRielResponse) => {
-    setAccionEditando(accion); // Modo EDITAR
+    // FIX: guardamos solo el ID. El objeto se lee del query fresco en el render.
+    setAccionEditandoId(accion.id);
     setModalAccionAbierto(true);
+  };
+
+  const handleCerrarModal = (open: boolean) => {
+    setModalAccionAbierto(open);
+    // Al cerrar el modal, limpiamos el id para no dejar estado colgado.
+    if (!open) {
+      setAccionEditandoId(null);
+    }
   };
 
   const handlePedirEliminarAccion = (accion: AccionRielResponse) => {
@@ -427,10 +455,12 @@ export function FallaRielDetallePage(props: FallaRielDetallePageProps = {}) {
         onConfirmar={handleEliminarFalla}
       />
 
-      {/* FASE 5 — Modal de crear/editar acción */}
+      {/* FASE 5 — Modal de crear/editar acción.
+          FIX: accionActual se deriva del query fresco (accionEditando),
+          no de un snapshot del estado local. Ver derivación arriba. */}
       <AccionRielModal
         open={modalAccionAbierto}
-        onOpenChange={setModalAccionAbierto}
+        onOpenChange={handleCerrarModal}
         fallaId={fallaId}
         accionActual={accionEditando}
       />

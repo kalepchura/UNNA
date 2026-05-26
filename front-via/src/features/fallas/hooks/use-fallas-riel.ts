@@ -42,7 +42,7 @@ export function useFallaRiel(id: number, habilitado = true) {
     queryKey: queryKeys.fallas.rielDetail(id),
     queryFn: () => fallasApi.riel.obtener(id),
     enabled: habilitado && id > 0,
-    staleTime: 30_000, // 🔑 30s: evita refetches al ganar foco
+    staleTime: 0, // 🔑 30s: evita refetches al ganar foco
   });
 }
 
