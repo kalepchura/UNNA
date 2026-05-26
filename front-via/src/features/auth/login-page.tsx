@@ -44,170 +44,102 @@ const css = `
     overflow: hidden;
   }
 
-  /* ===================================================== */
-  /* PAGE */
-  /* ===================================================== */
-
   .lp-page {
     min-height: 100vh;
-
     display: flex;
     align-items: center;
     justify-content: center;
-
     padding: 2rem;
-
     background:
-      radial-gradient(
-        circle at top left,
-        rgba(0, 208, 132, 0.08),
-        transparent 30%
-      ),
-      radial-gradient(
-        circle at bottom right,
-        rgba(0, 208, 132, 0.05),
-        transparent 30%
-      ),
+      radial-gradient(circle at top left, rgba(0, 208, 132, 0.08), transparent 30%),
+      radial-gradient(circle at bottom right, rgba(0, 208, 132, 0.05), transparent 30%),
       #050816;
   }
 
-  /* ===================================================== */
-  /* PANEL */
-  /* ===================================================== */
-
   .lp-panel {
     position: relative;
-
     width: 100%;
     max-width: 1120px;
-
     height: 620px;
-
     overflow: hidden;
-
     border-radius: 14px;
-
     background: #081018;
-
     border: 1px solid rgba(255,255,255,0.04);
-
-    box-shadow:
-      0 25px 70px rgba(0,0,0,0.42);
-
+    box-shadow: 0 25px 70px rgba(0,0,0,0.42);
     display: flex;
   }
 
-  /* ===================================================== */
-  /* LEFT */
-  /* ===================================================== */
-
   .lp-left {
     position: relative;
-
     flex: 1;
-
     overflow: hidden;
   }
 
   .lp-banner {
     position: absolute;
     inset: 0;
-
     background-image: url('BANNER_PLACEHOLDER');
-
     background-size: cover;
     background-position: center;
-
     transform: scale(1.03);
   }
 
   .lp-overlay {
     position: absolute;
     inset: 0;
-
-    background:
-      linear-gradient(
-        90deg,
-        rgba(5,8,22,0.84) 0%,
-        rgba(5,8,22,0.52) 42%,
-        rgba(5,8,22,0.12) 100%
-      );
+    background: linear-gradient(
+      90deg,
+      rgba(5,8,22,0.84) 0%,
+      rgba(5,8,22,0.52) 42%,
+      rgba(5,8,22,0.12) 100%
+    );
   }
 
   .lp-left-content {
     position: relative;
-
     z-index: 2;
-
     height: 100%;
-
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-
     padding: 2.4rem;
   }
 
   .lp-logo {
     width: 180px;
-
     object-fit: contain;
-
-    filter:
-      drop-shadow(0 4px 12px rgba(0,0,0,0.35));
+    filter: drop-shadow(0 4px 12px rgba(0,0,0,0.35));
   }
 
   .lp-bottom {
     display: inline-flex;
     align-items: center;
     gap: 0.6rem;
-
     width: fit-content;
-
     padding: 0.8rem 1rem;
-
     border-radius: 999px;
-
     background: rgba(255,255,255,0.06);
-
     border: 1px solid rgba(255,255,255,0.08);
-
     backdrop-filter: blur(10px);
-
     color: rgba(255,255,255,0.72);
-
     font-size: 0.84rem;
     font-weight: 500;
-
     letter-spacing: 0.04em;
   }
 
-  /* ===================================================== */
-  /* RIGHT */
-  /* ===================================================== */
-
   .lp-right {
     width: 360px;
-
-    background:
-      linear-gradient(
-        180deg,
-        rgba(10,15,25,0.97) 0%,
-        rgba(8,12,20,0.99) 100%
-      );
-
+    background: linear-gradient(
+      180deg,
+      rgba(10,15,25,0.97) 0%,
+      rgba(8,12,20,0.99) 100%
+    );
     border-left: 1px solid rgba(255,255,255,0.04);
-
     display: flex;
     align-items: center;
     justify-content: center;
-
     padding: 2rem;
   }
-
-  /* ===================================================== */
-  /* CARD */
-  /* ===================================================== */
 
   .lp-card {
     width: 100%;
@@ -216,22 +148,12 @@ const css = `
   .lp-icon-wrap {
     width: 70px;
     height: 70px;
-
     margin: 0 auto 1.4rem;
-
     border-radius: 50%;
-
     display: flex;
     align-items: center;
     justify-content: center;
-
-    background:
-      radial-gradient(
-        circle at top,
-        rgba(0,208,132,0.18),
-        rgba(0,208,132,0.05)
-      );
-
+    background: radial-gradient(circle at top, rgba(0,208,132,0.18), rgba(0,208,132,0.05));
     border: 1px solid rgba(0,208,132,0.16);
   }
 
@@ -241,29 +163,19 @@ const css = `
 
   .lp-title {
     text-align: center;
-
     color: #ffffff;
-
     font-size: 1.85rem;
     font-weight: 700;
-
     margin: 0;
   }
 
   .lp-subtitle {
     text-align: center;
-
     margin-top: 0.55rem;
     margin-bottom: 2rem;
-
     color: rgba(255,255,255,0.50);
-
     font-size: 0.90rem;
   }
-
-  /* ===================================================== */
-  /* FORM */
-  /* ===================================================== */
 
   .lp-fields {
     display: flex;
@@ -273,54 +185,36 @@ const css = `
 
   .lp-label {
     display: block;
-
     margin-bottom: 0.55rem;
-
     color: rgba(255,255,255,0.82);
-
     font-size: 0.86rem;
     font-weight: 500;
   }
 
   .lp-input-wrap {
     position: relative;
-
     display: flex;
     align-items: center;
   }
 
   .lp-input-icon {
     position: absolute;
-
     left: 1rem;
-
     color: rgba(255,255,255,0.28);
-
     pointer-events: none;
   }
 
   .lp-input {
     width: 100%;
     height: 52px;
-
     border-radius: 10px;
-
     border: 1px solid rgba(255,255,255,0.05);
-
     background: rgba(255,255,255,0.04);
-
     padding: 0 1rem 0 2.8rem;
-
     color: #ffffff;
-
     font-size: 0.92rem;
-
     outline: none;
-
-    transition:
-      border-color 0.2s,
-      background 0.2s,
-      box-shadow 0.2s;
+    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
   }
 
   .lp-input::placeholder {
@@ -329,26 +223,18 @@ const css = `
 
   .lp-input:focus {
     border-color: rgba(0,208,132,0.35);
-
     background: rgba(255,255,255,0.06);
-
-    box-shadow:
-      0 0 0 3px rgba(0,208,132,0.08);
+    box-shadow: 0 0 0 3px rgba(0,208,132,0.08);
   }
 
   .lp-eye {
     position: absolute;
-
     right: 0.9rem;
-
     border: none;
     background: transparent;
-
     color: rgba(255,255,255,0.32);
-
     display: flex;
     align-items: center;
-
     cursor: pointer;
   }
 
@@ -358,20 +244,13 @@ const css = `
 
   .lp-error {
     margin-top: 0.4rem;
-
     color: #ff7f9f;
-
     font-size: 0.76rem;
   }
-
-  /* ===================================================== */
-  /* OPTIONS */
-  /* ===================================================== */
 
   .lp-options {
     margin-top: 1.2rem;
     margin-bottom: 1.8rem;
-
     display: flex;
     align-items: center;
   }
@@ -385,107 +264,67 @@ const css = `
   .lp-remember input {
     width: 14px;
     height: 14px;
-
     accent-color: #00d084;
   }
 
   .lp-remember label {
     color: rgba(255,255,255,0.56);
-
     font-size: 0.86rem;
   }
-
-  /* ===================================================== */
-  /* BUTTON */
-  /* ===================================================== */
 
   .lp-btn {
     width: 100%;
     height: 54px;
-
     border: none;
-
     border-radius: 10px;
-
-    background:
-      linear-gradient(
-        135deg,
-        #00d084 0%,
-        #00b37e 100%
-      );
-
+    background: linear-gradient(135deg, #00d084 0%, #00b37e 100%);
     color: #ffffff;
-
     font-size: 0.94rem;
     font-weight: 600;
-
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0.55rem;
-
     cursor: pointer;
-
-    transition:
-      transform 0.2s,
-      opacity 0.2s;
-
-    box-shadow:
-      0 10px 24px rgba(0,208,132,0.18);
+    transition: transform 0.2s, opacity 0.2s;
+    box-shadow: 0 10px 24px rgba(0,208,132,0.18);
   }
 
   .lp-btn:hover:not(:disabled) {
     transform: translateY(-2px);
-
     opacity: 0.96;
   }
 
   .lp-btn:disabled {
     opacity: 0.65;
-
     cursor: not-allowed;
   }
 
   .lp-spinner {
     width: 17px;
     height: 17px;
-
     border-radius: 50%;
-
     border: 2px solid rgba(255,255,255,0.28);
-
     border-top-color: #ffffff;
-
     animation: spin 0.7s linear infinite;
   }
 
   @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
+    to { transform: rotate(360deg); }
   }
-
-  /* ===================================================== */
-  /* RESPONSIVE */
-  /* ===================================================== */
 
   @media (max-width: 920px) {
     .lp-panel {
       flex-direction: column;
-
       height: auto;
-
       max-width: 430px;
     }
-
     .lp-left {
       min-height: 220px;
     }
-
     .lp-left-content {
       padding: 2rem;
     }
-
     .lp-right {
       width: 100%;
     }
@@ -495,20 +334,53 @@ const css = `
     .lp-page {
       padding: 1rem;
     }
-
     .lp-panel {
       border-radius: 12px;
     }
-
     .lp-right {
       padding: 1.6rem;
     }
-
     .lp-logo {
       width: 160px;
     }
   }
 `;
+
+// Traducción de errores de Supabase al español
+const ERRORES_ES: Record<string, string> = {
+  'invalid login credentials':
+    'Correo o contraseña incorrectos',
+  'invalid_credentials':
+    'Correo o contraseña incorrectos',
+  'email not confirmed':
+    'Debes confirmar tu correo antes de ingresar',
+  'too many requests':
+    'Demasiados intentos. Espera unos minutos e intenta de nuevo',
+  'user not found':
+    'No existe una cuenta con ese correo',
+  'network request failed':
+    'Sin conexión. Verifica tu internet e intenta de nuevo',
+  'email_not_confirmed':
+    'Debes confirmar tu correo antes de ingresar',
+  'over_email_send_rate_limit':
+    'Demasiados intentos. Espera unos minutos e intenta de nuevo',
+};
+
+function traducirError(raw: string): string {
+  const clave = raw.toLowerCase();
+
+  // Búsqueda exacta
+  if (ERRORES_ES[clave]) return ERRORES_ES[clave];
+
+  // Búsqueda parcial
+  const coincidencia = Object.keys(ERRORES_ES).find((k) =>
+    clave.includes(k)
+  );
+
+  return coincidencia
+    ? ERRORES_ES[coincidencia]
+    : 'Error al iniciar sesión. Intenta de nuevo';
+}
 
 export function LoginPage() {
   const { session, user, loading, login } = useAuth();
@@ -542,7 +414,8 @@ export function LoginPage() {
 
   if (session && user) {
     const destino =
-      (location.state as { from?: { pathname: string } } | null)?.from?.pathname ?? '/';
+      (location.state as { from?: { pathname: string } } | null)
+        ?.from?.pathname ?? '/';
 
     return <Navigate to={destino} replace />;
   }
@@ -554,16 +427,15 @@ export function LoginPage() {
       await login(data.email, data.password);
 
       const destino =
-        (location.state as { from?: { pathname: string } } | null)?.from?.pathname ?? '/';
+        (location.state as { from?: { pathname: string } } | null)
+          ?.from?.pathname ?? '/';
 
       navigate(destino, { replace: true });
     } catch (err: unknown) {
-      const mensaje =
-        err instanceof Error
-          ? err.message
-          : 'Error al iniciar sesión';
+      const rawMsg =
+        err instanceof Error ? err.message : 'Error al iniciar sesión';
 
-      toast.error(mensaje);
+      toast.error(traducirError(rawMsg));
 
       setSubmitting(false);
     }
@@ -584,7 +456,6 @@ export function LoginPage() {
             <div className="lp-overlay" />
 
             <div className="lp-left-content">
-
               <img
                 src={logoUnna}
                 alt="Unna"
@@ -595,7 +466,6 @@ export function LoginPage() {
                 <Shield size={15} />
                 Acceso privado
               </div>
-
             </div>
           </div>
 
@@ -607,9 +477,7 @@ export function LoginPage() {
                 <Shield size={30} className="lp-icon" />
               </div>
 
-              <h1 className="lp-title">
-                Iniciar sesión
-              </h1>
+              <h1 className="lp-title">Iniciar sesión</h1>
 
               <p className="lp-subtitle">
                 Accede con tus credenciales
@@ -620,18 +488,12 @@ export function LoginPage() {
 
                   {/* EMAIL */}
                   <div>
-                    <label
-                      htmlFor="email"
-                      className="lp-label"
-                    >
+                    <label htmlFor="email" className="lp-label">
                       Correo electrónico
                     </label>
 
                     <div className="lp-input-wrap">
-                      <Mail
-                        size={17}
-                        className="lp-input-icon"
-                      />
+                      <Mail size={17} className="lp-input-icon" />
 
                       <input
                         id="email"
@@ -653,18 +515,12 @@ export function LoginPage() {
 
                   {/* PASSWORD */}
                   <div>
-                    <label
-                      htmlFor="password"
-                      className="lp-label"
-                    >
+                    <label htmlFor="password" className="lp-label">
                       Contraseña
                     </label>
 
                     <div className="lp-input-wrap">
-                      <Lock
-                        size={17}
-                        className="lp-input-icon"
-                      />
+                      <Lock size={17} className="lp-input-icon" />
 
                       <input
                         id="password"
@@ -705,14 +561,9 @@ export function LoginPage() {
                       id="remember"
                       type="checkbox"
                       checked={remember}
-                      onChange={(e) =>
-                        setRemember(e.target.checked)
-                      }
+                      onChange={(e) => setRemember(e.target.checked)}
                     />
-
-                    <label htmlFor="remember">
-                      Recordarme
-                    </label>
+                    <label htmlFor="remember">Recordarme</label>
                   </div>
                 </div>
 
