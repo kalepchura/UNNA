@@ -29,6 +29,18 @@ import { AccionRielResponseDto } from '../accion-riel/accion-riel-response.dto';
  *  - Acciones: array opcional. Se incluye SOLO cuando se llama desde el
  *    endpoint de detalle (GET /:id). En listados, queda undefined para
  *    no inflar el payload.
+ *
+ * ============================================================
+ * FIX — PROXY DE TYPEORM
+ * ============================================================
+ * La relación acciones es @OneToMany sin eager. TypeORM asigna un
+ * Proxy lazy a f.acciones cuando la entidad se carga sin el JOIN.
+ * Ese Proxy es truthy (pasa el check `f.acciones`) pero al iterarlo
+ * lanza LazyRelationCannotLoadError o devuelve datos inconsistentes.
+ *
+ * Solución: usar Array.isArray(f.acciones) como guard. El Proxy de
+ * TypeORM NO pasa Array.isArray — solo pasa cuando el service asignó
+ * manualmente un array real (falla.acciones = accionesRepo.listar(...)).
  * ============================================================
  */
 export class FallaRielResponseDto {
@@ -90,8 +102,9 @@ export class FallaRielResponseDto {
   /**
    * Historial de acciones (timeline).
    * Solo se llena en el endpoint de detalle. En listados queda undefined.
-   * Para incluirlo, el service debe cargar las relations correspondientes
-   * y luego llamar a fromEntity con incluirAcciones=true.
+   * Para incluirlo, el service debe asignar falla.acciones manualmente
+   * (array real, no el Proxy de TypeORM) y llamar fromEntity con
+   * incluirAcciones: true.
    */
   acciones?: AccionRielResponseDto[];
 
@@ -132,7 +145,6 @@ export class FallaRielResponseDto {
     dto.velocidadKmh = f.velocidadKmh;
 
     dto.tramoId = f.tramoId;
-    // f.tramo solo está cargado si se hizo JOIN. Si no, devolvemos cadenas vacías.
     dto.tramoCodigo = f.tramo?.codigo ?? '';
     dto.tramoNombre = f.tramo?.nombre ?? '';
 
@@ -151,8 +163,11 @@ export class FallaRielResponseDto {
     dto.actualizadoEn = f.actualizadoEn;
     dto.eliminado = f.eliminado;
 
-    // Acciones: solo si se piden Y vienen cargadas en la entidad
-    if (opciones?.incluirAcciones && f.acciones) {
+    // FIX: Array.isArray en lugar de truthy check.
+    // El Proxy lazy de TypeORM es truthy pero NO pasa Array.isArray.
+    // Solo entra aquí cuando el service asignó un array real mediante
+    // falla.acciones = await accionesRepo.listarPorFalla(id, false).
+    if (opciones?.incluirAcciones && Array.isArray(f.acciones)) {
       dto.acciones = f.acciones
         .filter((a) => !a.eliminado)
         .sort((a, b) => {

@@ -15,6 +15,8 @@ import { FallaRielAccion } from '../entities/falla-riel-accion.entity';
  *  - buscarPorId:           detalle de una acción (con filtro de eliminadas)
  *  - crear / actualizar:    CRUD básico
  *  - contarPorFalla:        para validar reglas (ej: max acciones)
+ *  - eliminarPorFalla:      soft delete en cascada (cuando se elimina la falla padre)
+ *  - restaurarPorFalla:     restaura acciones en cascada (cuando se restaura la falla padre)
  *
  * REGLA DE ORDEN para "más reciente":
  *  - Primer criterio: fechaEjecucion DESC (NULLS LAST)
@@ -126,6 +128,71 @@ export class FallasRielAccionRepository {
   ): Promise<FallaRielAccion> {
     Object.assign(accion, cambios);
     return this.repo.save(accion);
+  }
+
+  // ----------------------------------------------------------
+  // CASCADE SOFT DELETE / RESTORE
+  // ----------------------------------------------------------
+
+  /**
+   * Soft delete en cascada de todas las acciones activas de una falla.
+   *
+   * Se llama desde FallasRielService.eliminar() porque el onDelete: 'CASCADE'
+   * de TypeORM solo se dispara con hard delete, no con soft delete.
+   * Sin esto, al eliminar una falla sus acciones quedan con eliminado=false,
+   * visualmente huérfanas y con estadoActual desincronizado.
+   *
+   * Solo afecta acciones con eliminado=false para no pisar registros
+   * que ya estaban eliminados individualmente antes.
+   */
+  async eliminarPorFalla(
+    fallaId: number,
+    eliminadoPorId: string,
+  ): Promise<void> {
+    await this.repo
+      .createQueryBuilder()
+      .update(FallaRielAccion)
+      .set({
+        eliminado: true,
+        eliminadoPorId,
+        actualizadoPor: eliminadoPorId,
+      })
+      .where('falla_id = :fallaId', { fallaId })
+      .andWhere('eliminado = false')
+      .execute();
+  }
+
+  /**
+   * Restaura en cascada todas las acciones de una falla que fueron
+   * eliminadas JUNTO CON la falla (eliminadoPorId coincide con quien
+   * eliminó la falla).
+   *
+   * Por qué filtrar por eliminadoPorId:
+   *  - Una acción puede haber sido eliminada individualmente antes de
+   *    que se eliminara la falla. Esa acción NO debe restaurarse
+   *    automáticamente, porque tenía su propia razón de existir eliminada.
+   *  - Solo restauramos las que fueron eliminadas en cascada, es decir,
+   *    las que tienen el mismo eliminadoPorId que la falla.
+   *
+   * Se llama desde FallasRielService.restaurar().
+   */
+  async restaurarPorFalla(
+    fallaId: number,
+    eliminadoPorId: string,
+    actualizadoPor: string,
+  ): Promise<void> {
+    await this.repo
+      .createQueryBuilder()
+      .update(FallaRielAccion)
+      .set({
+        eliminado: false,
+        eliminadoPorId: null,
+        actualizadoPor,
+      })
+      .where('falla_id = :fallaId', { fallaId })
+      .andWhere('eliminado = true')
+      .andWhere('eliminado_por_id = :eliminadoPorId', { eliminadoPorId })
+      .execute();
   }
 
   // ----------------------------------------------------------

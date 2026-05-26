@@ -14,11 +14,7 @@ import { AccionRielResponseDto } from '../dto/accion-riel/accion-riel-response.d
 import { FallaRielAccion } from '../entities/falla-riel-accion.entity';
 import { FallaRiel } from '../entities/falla-riel.entity';
 
-import { AuditoriaService } from '../../auditoria/services/auditoria.service';
-import { registrarAuditoria } from '../../auditoria/helpers/auditoria.helper';
 import {
-  ModuloAuditoria,
-  OperacionAuditoria,
   EstadoFalla,
 } from '../../../common/enums';
 import { AuthenticatedUser } from '../../../common/interfaces/authenticated-user.interface';
@@ -52,16 +48,21 @@ import { Grafico3FallasService } from './grafico-3-fallas.service';
  *
  * Por eso, cualquier mutación de acciones (CREATE, UPDATE, soft-DELETE,
  * RESTORE) termina llamando a sincronizarEstadoFalla(fallaId).
+ *
+ * AUDITORÍA:
+ * Las acciones NO registran en AuditoriaLog porque no son una entidad
+ * principal del sistema — son el historial interno de una falla.
+ * La auditoría de la FallaRiel padre (CREATE/UPDATE/DELETE/RESTORE)
+ * ya cubre el ciclo de vida de la falla. Los campos de AuditoriaBase
+ * en la entidad (creadoEn, actualizadoEn, eliminado, eliminadoPorId)
+ * son suficientes para trazabilidad interna.
  * ============================================================
  */
 @Injectable()
 export class FallasRielAccionService {
-  private readonly NOMBRE_ENTIDAD = 'FallaRielAccion';
-
   constructor(
     private readonly accionesRepo: FallasRielAccionRepository,
     private readonly fallasRepo: FallasRielRepository,
-    private readonly auditoria: AuditoriaService,
 
     // Caché analítico: cambios de estadoActual afectan gráficos por estado
     private readonly kpisService: KpisFallasService,
@@ -140,19 +141,6 @@ export class FallasRielAccionService {
     // 🔄 SINCRONIZAR estado desnormalizado de la falla padre
     await this.sincronizarEstadoFalla(fallaId, user);
 
-    await registrarAuditoria(this.auditoria, {
-      modulo: ModuloAuditoria.FALLAS,
-      entidad: this.NOMBRE_ENTIDAD,
-      entidadId: String(creada.id),
-      operacion: OperacionAuditoria.CREATE,
-      user,
-      detalle: {
-        fallaId,
-        accion: dto.accion,
-        conclusion: dto.conclusion,
-      },
-    });
-
     this.invalidarCacheAnalitico();
 
     return AccionRielResponseDto.fromEntity(creada);
@@ -191,18 +179,6 @@ export class FallasRielAccionService {
     // recalcular siempre que tratar de detectar si el orden cambió.
     await this.sincronizarEstadoFalla(accion.fallaId, user);
 
-    await registrarAuditoria(this.auditoria, {
-      modulo: ModuloAuditoria.FALLAS,
-      entidad: this.NOMBRE_ENTIDAD,
-      entidadId: String(id),
-      operacion: OperacionAuditoria.UPDATE,
-      user,
-      detalle: {
-        fallaId: accion.fallaId,
-        camposCambiados: Object.keys(dto),
-      },
-    });
-
     this.invalidarCacheAnalitico();
 
     const actualizada = await this.accionesRepo.buscarPorId(id);
@@ -233,19 +209,6 @@ export class FallasRielAccionService {
     // Si no quedan acciones activas, la falla vuelve a NO_ATENDIDO.
     await this.sincronizarEstadoFalla(accion.fallaId, user);
 
-    await registrarAuditoria(this.auditoria, {
-      modulo: ModuloAuditoria.FALLAS,
-      entidad: this.NOMBRE_ENTIDAD,
-      entidadId: String(id),
-      operacion: OperacionAuditoria.DELETE,
-      user,
-      detalle: {
-        fallaId: accion.fallaId,
-        accion: accion.accion,
-        conclusion: accion.conclusion,
-      },
-    });
-
     this.invalidarCacheAnalitico();
   }
 
@@ -270,14 +233,6 @@ export class FallasRielAccionService {
     });
 
     await this.sincronizarEstadoFalla(accion.fallaId, user);
-
-    await registrarAuditoria(this.auditoria, {
-      modulo: ModuloAuditoria.FALLAS,
-      entidad: this.NOMBRE_ENTIDAD,
-      entidadId: String(id),
-      operacion: OperacionAuditoria.RESTORE,
-      user,
-    });
 
     this.invalidarCacheAnalitico();
   }

@@ -43,7 +43,7 @@ import { Grafico3FallasService } from './grafico-3-fallas.service';
  *  - CRUD con cálculo automático de contexto geográfico
  *  - Propagar al persistir TODOS los campos descriptivos opcionales
  *    (tipoDefecto, elementoAfectado, etc.)
- *  - Soft delete y restauración
+ *  - Soft delete y restauración — con CASCADE a acciones hijas
  *  - Gestión de archivos (informe interno / externo)
  *  - Registro de auditoría en cada operación
  *  - Invalidación de caché de KPIs/gráficos cuando cambian datos
@@ -52,6 +52,11 @@ import { Grafico3FallasService } from './grafico-3-fallas.service';
  * ⚠️ Importante: este service NO toca FallaRiel.estadoActual /
  * accionActual / ptActual / fechaEjecucionActual. Esos campos
  * son sincronizados exclusivamente por FallasRielAccionService.
+ *
+ * CASCADE SOFT DELETE:
+ *  El onDelete: 'CASCADE' de TypeORM solo se dispara con hard delete.
+ *  Para soft delete, propagamos manualmente a las acciones hijas
+ *  usando accionesRepo.eliminarPorFalla() y restaurarPorFalla().
  * ============================================================
  */
 @Injectable()
@@ -60,7 +65,7 @@ export class FallasRielService {
 
   constructor(
     private readonly fallasRepo: FallasRielRepository,
-    private readonly accionesRepo: FallasRielAccionRepository, // ← FASE 2: para cargar timeline
+    private readonly accionesRepo: FallasRielAccionRepository,
     private readonly geolocalizacion: GeolocalizacionService,
     private readonly auditoria: AuditoriaService,
     private readonly storage: StorageService,
@@ -87,9 +92,7 @@ export class FallasRielService {
       throw new NotFoundException(`FallaRiel con id ${id} no encontrada`);
     }
 
-    // 🆕 FASE 2: cargar timeline de acciones para el detalle.
-    // No filtramos eliminadas porque queremos el historial completo
-    // visible para el inspector (acciones eliminadas se marcan en UI).
+    // Cargar acciones activas para el timeline (las eliminadas no se muestran en detalle
     const acciones = await this.accionesRepo.listarPorFalla(id, false);
     falla.acciones = acciones;
 
@@ -131,7 +134,6 @@ export class FallasRielService {
     const limit = filtros.limit ?? 20;
 
     return {
-      // Sin acciones en listado (incluirAcciones=false por default)
       data: fallas.map((f) => FallaRielResponseDto.fromEntity(f)),
       total,
       page,
@@ -150,9 +152,6 @@ export class FallasRielService {
   ): Promise<FallaRielResponseDto> {
     const contexto = await this.geolocalizacion.calcular(dto.progresiva, dto.via);
 
-    // 🆕 FASE 2: construir el objeto de persistencia incluyendo todos los
-    // campos opcionales descriptivos. Si vienen undefined, la entidad
-    // aplica los defaults (SIN_DEFINIR, NO_APLICA, NO_ATENDIDO).
     const creada = await this.fallasRepo.crear({
       // Originales
       progresiva: dto.progresiva,
@@ -162,14 +161,14 @@ export class FallasRielService {
       causa: dto.causa ?? null,
       origen: dto.origen ?? null,
 
-      // 🆕 FASE 2 — Caracterización (si vienen, se persisten; si no, default BD)
+      // Caracterización (si vienen, se persisten; si no, default BD)
       ...(dto.tipoDefecto !== undefined && { tipoDefecto: dto.tipoDefecto }),
       ...(dto.elementoAfectado !== undefined && { elementoAfectado: dto.elementoAfectado }),
       ...(dto.zonaAfectada !== undefined && { zonaAfectada: dto.zonaAfectada }),
       ...(dto.perfil !== undefined && { perfil: dto.perfil }),
       ...(dto.altaBaja !== undefined && { altaBaja: dto.altaBaja }),
 
-      // 🆕 FASE 2 — Medidas (nullables)
+      // Medidas (nullables)
       progresivaFinal: dto.progresivaFinal ?? null,
       largo: dto.largo ?? null,
       ancho: dto.ancho ?? null,
@@ -178,7 +177,6 @@ export class FallasRielService {
       tipoOnda: dto.tipoOnda ?? null,
 
       // Estado desnormalizado inicial: NO_ATENDIDO con nulls
-      // (no aceptamos esto del DTO, lo seteamos siempre)
       estadoActual: EstadoFalla.NO_ATENDIDO,
       accionActual: null,
       ptActual: null,
@@ -247,11 +245,10 @@ export class FallasRielService {
       };
     }
 
-    // 🆕 FASE 2: incluimos los nuevos campos descriptivos opcionales.
-    // NOTA IMPORTANTE: los 4 campos del bloque "estado desnormalizado"
+    // NOTA: los 4 campos del bloque "estado desnormalizado"
     // (estadoActual, accionActual, ptActual, fechaEjecucionActual)
     // NO se incluyen aquí. Eso es responsabilidad exclusiva del
-    // FallasRielAccionService. Si dto los enviara, los ignoramos.
+    // FallasRielAccionService.
     const cambios: Partial<FallaRiel> = {
       // Originales
       ...(dto.progresiva !== undefined && { progresiva: dto.progresiva }),
@@ -261,14 +258,14 @@ export class FallasRielService {
       ...(dto.causa !== undefined && { causa: dto.causa }),
       ...(dto.origen !== undefined && { origen: dto.origen }),
 
-      // 🆕 FASE 2 — Caracterización
+      // Caracterización
       ...(dto.tipoDefecto !== undefined && { tipoDefecto: dto.tipoDefecto }),
       ...(dto.elementoAfectado !== undefined && { elementoAfectado: dto.elementoAfectado }),
       ...(dto.zonaAfectada !== undefined && { zonaAfectada: dto.zonaAfectada }),
       ...(dto.perfil !== undefined && { perfil: dto.perfil }),
       ...(dto.altaBaja !== undefined && { altaBaja: dto.altaBaja }),
 
-      // 🆕 FASE 2 — Medidas
+      // Medidas
       ...(dto.progresivaFinal !== undefined && { progresivaFinal: dto.progresivaFinal }),
       ...(dto.largo !== undefined && { largo: dto.largo }),
       ...(dto.ancho !== undefined && { ancho: dto.ancho }),
@@ -314,11 +311,18 @@ export class FallasRielService {
       throw new BadRequestException('La falla ya está eliminada');
     }
 
+    // 1. Soft delete de la falla
     await this.fallasRepo.actualizar(falla, {
       eliminado: true,
       eliminadoPorId: user.id,
       actualizadoPor: user.id,
     });
+
+    // 2. Cascade soft delete a todas las acciones activas de esta falla.
+    //    Usamos user.id como eliminadoPorId para poder identificarlas
+    //    en la restauración y no restaurar las que ya estaban eliminadas
+    //    individualmente antes.
+    await this.accionesRepo.eliminarPorFalla(id, user.id);
 
     await registrarAuditoria(this.auditoria, {
       modulo: ModuloAuditoria.FALLAS,
@@ -346,11 +350,23 @@ export class FallasRielService {
       throw new BadRequestException('La falla no está eliminada');
     }
 
+    // 1. Restaurar la falla
     await this.fallasRepo.actualizar(falla, {
       eliminado: false,
       eliminadoPorId: null,
       actualizadoPor: user.id,
     });
+
+    // 2. Restaurar solo las acciones que fueron eliminadas EN CASCADA
+    //    junto con la falla (las que tienen eliminadoPorId = falla.eliminadoPorId).
+    //    Las que fueron eliminadas individualmente antes NO se restauran.
+    if (falla.eliminadoPorId) {
+      await this.accionesRepo.restaurarPorFalla(
+        id,
+        falla.eliminadoPorId,
+        user.id,
+      );
+    }
 
     await registrarAuditoria(this.auditoria, {
       modulo: ModuloAuditoria.FALLAS,
@@ -364,7 +380,7 @@ export class FallasRielService {
   }
 
   // ----------------------------------------------------------
-  // ARCHIVOS (informe interno / externo) — SIN CAMBIOS desde Fase 1
+  // ARCHIVOS (informe interno / externo)
   // ----------------------------------------------------------
 
   /**

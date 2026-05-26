@@ -18,7 +18,18 @@ interface CacheEntry {
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   private readonly cache = new Map<string, CacheEntry>();
-  private readonly CACHE_TTL_MS = 60_000;
+
+  /**
+   * TTL del cache: 30s (antes era 60s).
+   *
+   * BUG PREVENIDO: Con 60s, un usuario recién desactivado
+   * seguía pasando el guard durante hasta 1 minuto.
+   * 30s es un balance razonable entre rendimiento y frescura.
+   *
+   * Alternativa más segura: reducir a 0 para deshabilitar cache
+   * si la consistencia inmediata es crítica en tu sistema.
+   */
+  private readonly CACHE_TTL_MS = 30_000;
   private readonly CLEANUP_INTERVAL_MS = 5 * 60_000;
 
   constructor(
@@ -26,7 +37,10 @@ export class JwtAuthGuard implements CanActivate {
     private readonly supabaseAdmin: SupabaseClient,
     private readonly usuariosRepo: UsuariosRepository,
   ) {
-    setInterval(() => this.limpiarCacheExpirado(), this.CLEANUP_INTERVAL_MS);
+    setInterval(
+      () => this.limpiarCacheExpirado(),
+      this.CLEANUP_INTERVAL_MS,
+    );
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -34,31 +48,61 @@ export class JwtAuthGuard implements CanActivate {
     const token = this.extraerToken(request);
 
     if (!token) {
-      throw new UnauthorizedException('No se envió token de autenticación');
+      throw new UnauthorizedException(
+        'No se envió token de autenticación',
+      );
     }
 
+    // --------------------------------------------------------
+    // Cache hit — solo si no está expirado
+    // --------------------------------------------------------
     const cached = this.cache.get(token);
     if (cached && cached.expira > Date.now()) {
       request.user = cached.user;
       return true;
     }
 
-    const { data: { user }, error } = await this.supabaseAdmin.auth.getUser(token);
+    // --------------------------------------------------------
+    // Verificar token con Supabase
+    // --------------------------------------------------------
+    const {
+      data: { user },
+      error,
+    } = await this.supabaseAdmin.auth.getUser(token);
 
     if (error || !user) {
+      // Token inválido o expirado — limpiar cache por si acaso
+      this.cache.delete(token);
       throw new UnauthorizedException('Token inválido o expirado');
     }
 
+    // --------------------------------------------------------
+    // Verificar usuario en BD propia
+    //
+    // BUG PREVENIDO: Antes se guardaba en cache ANTES de
+    // verificar activo/existencia. Ahora:
+    // - Si no existe → eliminar del cache + 401
+    // - Si inactivo  → eliminar del cache + 401
+    //   (evita que un token cacheado de usuario activo
+    //    siga siendo válido después de desactivarlo)
+    // --------------------------------------------------------
     const usuario = await this.usuariosRepo.buscarPorId(user.id);
 
     if (!usuario) {
-      throw new UnauthorizedException('Usuario no registrado en el sistema');
+      this.cache.delete(token);
+      throw new UnauthorizedException(
+        'Usuario no registrado en el sistema',
+      );
     }
 
     if (!usuario.activo) {
+      this.cache.delete(token);
       throw new UnauthorizedException('Cuenta deshabilitada');
     }
 
+    // --------------------------------------------------------
+    // Todo OK — guardar en cache y adjuntar al request
+    // --------------------------------------------------------
     const authenticatedUser: AuthenticatedUser = {
       id: usuario.id,
       correo: usuario.correo,
