@@ -85,3 +85,30 @@ http.interceptors.response.use(
     }
   }
 );
+
+// Extrae un mensaje de error legible desde cualquier tipo de error
+export function extraerMensajeError(error: unknown): string {
+  if (error instanceof AxiosError) {
+    // Mensaje del backend si lo hay
+    const backendMsg =
+      error.response?.data?.message ||
+      error.response?.data?.detail ||
+      error.response?.data?.error;
+
+    if (backendMsg) {
+      return typeof backendMsg === 'string'
+        ? backendMsg
+        : JSON.stringify(backendMsg);
+    }
+
+    // Mensajes de red
+    if (error.code === 'ERR_NETWORK') return 'Sin conexión. Verifica tu internet.';
+    if (error.code === 'ECONNABORTED') return 'La solicitud tardó demasiado. Intenta de nuevo.';
+
+    return error.message || 'Error de red';
+  }
+
+  if (error instanceof Error) return error.message;
+
+  return 'Ocurrió un error inesperado';
+}
