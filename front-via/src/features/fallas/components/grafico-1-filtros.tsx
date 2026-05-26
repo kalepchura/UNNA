@@ -1,5 +1,15 @@
 /**
  * Filtros del Gráfico 1 (Evolución temporal por tramo).
+ *
+ * FASE 1: agregados multi-select de curvas horizontales y verticales.
+ * FASE 2.D: agregada sección colapsable "Filtros avanzados (riel)"
+ * con 5 multi-select de enum (tipoDefecto, elementoAfectado,
+ * zonaAfectada, perfil, estadoActual).
+ *
+ * Los filtros avanzados aplican SOLO a fallas_riel — las soldaduras
+ * inox no tienen estos campos. Eso es transparente: si filtras por
+ * un enum y tipoFalla=AMBAS, las soldaduras igual aparecen en el
+ * conteo (no tienen el campo, no se filtran).
  */
 
 import { Button } from '@/components/ui/button';
@@ -17,8 +27,19 @@ import {
   FilterField,
 } from '@/components/shared/filters-toolbar';
 import { SelectorAnio } from './filtros-comunes/selector-anio';
+import { SelectorCurvasHorizontales } from './filtros-comunes/selector-curvas-horizontales';
+import { SelectorCurvasVerticales } from './filtros-comunes/selector-curvas-verticales';
+import { FiltrosAvanzadosSeccion } from './filtros-comunes/filtros-avanzados-seccion';
+import {
+  SelectorTipoDefecto,
+  SelectorElementoAfectado,
+  SelectorZonaAfectada,
+  SelectorPerfil,
+  SelectorEstadoActual,
+} from './filtros-comunes/selectores-enum-fallas';
 import { useTramosOptions } from '@/hooks/use-tramos-options';
 import type { Grafico1Filtros } from '../types/grafico-1.types';
+import { GranularidadTemporal } from '@/lib/types/enums/fallas.enum';
 
 interface FiltrosProps {
   config: Grafico1Filtros;
@@ -42,6 +63,23 @@ export function FiltrosGrafico1({
   const tipoFalla = config.tipoFalla;
   const tipoVia = config.tipoVia;
   const tramoIds = config.tramoIds ?? [];
+  const curvaHIds = config.curvaHorizontalIds ?? [];
+  const curvaVIds = config.curvaVerticalIds ?? [];
+  const tipoDefectos = config.tipoDefectos ?? [];
+  const elementosAfectados = config.elementosAfectados ?? [];
+  const zonasAfectadas = config.zonasAfectadas ?? [];
+  const perfiles = config.perfiles ?? [];
+  const estadosActuales = config.estadosActuales ?? [];
+
+  // Contador para el badge de la sección colapsable.
+  // Cuenta cuántos grupos de filtros avanzados tienen al menos 1 valor.
+  const cantidadAvanzadosActivos = [
+    tipoDefectos.length > 0,
+    elementosAfectados.length > 0,
+    zonasAfectadas.length > 0,
+    perfiles.length > 0,
+    estadosActuales.length > 0,
+  ].filter(Boolean).length;
 
   return (
     <FiltersToolbar
@@ -57,7 +95,7 @@ export function FiltrosGrafico1({
         <FilterField label="Granularidad">
           <Select
             value={granularidad ?? ''}
-            onValueChange={(value: 'MENSUAL' | 'ANUAL') =>
+            onValueChange={(value: GranularidadTemporal) =>
               onChange({ ...config, granularidad: value })
             }
           >
@@ -65,13 +103,13 @@ export function FiltrosGrafico1({
               <SelectValue placeholder="Selecciona granularidad" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="MENSUAL">Mensual</SelectItem>
-              <SelectItem value="ANUAL">Anual</SelectItem>
+              <SelectItem value={GranularidadTemporal.MENSUAL}>Mensual</SelectItem>
+              <SelectItem value={GranularidadTemporal.ANUAL}>Anual</SelectItem>
             </SelectContent>
           </Select>
         </FilterField>
 
-        {granularidad === 'MENSUAL' && (
+        {granularidad === GranularidadTemporal.MENSUAL && (
           <FilterField label="Año">
             <SelectorAnio
               value={anio}
@@ -80,7 +118,7 @@ export function FiltrosGrafico1({
           </FilterField>
         )}
 
-        {granularidad === 'ANUAL' && (
+        {granularidad === GranularidadTemporal.ANUAL && (
           <>
             <FilterField label="Año Inicio">
               <SelectorAnio
@@ -110,7 +148,7 @@ export function FiltrosGrafico1({
           <Select
             value={tipoFalla ?? ''}
             onValueChange={(value) =>
-              onChange({ ...config, tipoFalla: value })
+              onChange({ ...config, tipoFalla: value as Grafico1Filtros['tipoFalla'] })
             }
           >
             <SelectTrigger>
@@ -161,7 +199,62 @@ export function FiltrosGrafico1({
             allOptionLabel="Todos los tramos"
           />
         </FilterField>
+
+        {/* FASE 1 — Filtros de curva (solo aplican a fallas_riel) */}
+        <FilterField label="Curvas Horizontales" span={2}>
+          <SelectorCurvasHorizontales
+            value={curvaHIds}
+            onChange={(ids) => onChange({ ...config, curvaHorizontalIds: ids })}
+          />
+        </FilterField>
+
+        <FilterField label="Curvas Verticales" span={2}>
+          <SelectorCurvasVerticales
+            value={curvaVIds}
+            onChange={(ids) => onChange({ ...config, curvaVerticalIds: ids })}
+          />
+        </FilterField>
       </FiltersGrid>
+
+      {/* FASE 2.D — Sección colapsable de filtros avanzados (solo riel) */}
+      <FiltrosAvanzadosSeccion cantidadActivos={cantidadAvanzadosActivos}>
+        <FiltersGrid columns={3}>
+          <FilterField label="Tipo de Defecto">
+            <SelectorTipoDefecto
+              value={tipoDefectos}
+              onChange={(v) => onChange({ ...config, tipoDefectos: v })}
+            />
+          </FilterField>
+
+          <FilterField label="Elemento Afectado">
+            <SelectorElementoAfectado
+              value={elementosAfectados}
+              onChange={(v) => onChange({ ...config, elementosAfectados: v })}
+            />
+          </FilterField>
+
+          <FilterField label="Zona Afectada">
+            <SelectorZonaAfectada
+              value={zonasAfectadas}
+              onChange={(v) => onChange({ ...config, zonasAfectadas: v })}
+            />
+          </FilterField>
+
+          <FilterField label="Perfil">
+            <SelectorPerfil
+              value={perfiles}
+              onChange={(v) => onChange({ ...config, perfiles: v })}
+            />
+          </FilterField>
+
+          <FilterField label="Estado Actual" span={2}>
+            <SelectorEstadoActual
+              value={estadosActuales}
+              onChange={(v) => onChange({ ...config, estadosActuales: v })}
+            />
+          </FilterField>
+        </FiltersGrid>
+      </FiltrosAvanzadosSeccion>
     </FiltersToolbar>
   );
 }

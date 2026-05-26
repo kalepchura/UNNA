@@ -13,6 +13,7 @@ export interface Usuario {
   correo: string;
   rol: 'USUARIO' | 'ADMINISTRADOR';
   activo: boolean;
+  invitacionPendiente: boolean;
   creadoEn: string;
   actualizadoEn: string;
 }
@@ -20,7 +21,6 @@ export interface Usuario {
 export interface CrearUsuarioDto {
   correo: string;
   nombre: string;
-  password: string;
   rol: 'USUARIO' | 'ADMINISTRADOR';
 }
 

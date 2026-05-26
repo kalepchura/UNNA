@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Plus } from 'lucide-react';
 
 import { useApiQuery } from '@/hooks/use-api-query';
+import { useInvalidate } from '@/hooks/use-invalidate';
 import { usuariosApi } from '@/lib/api/usuarios.api';
 
 import { PageHeader } from '@/components/layout/page-header';
@@ -24,6 +25,8 @@ export function UsuariosPage() {
   const [mostrarForm, setMostrarForm] = useState(false);
   const [usuarioEdit, setUsuarioEdit] = useState<Usuario | null>(null);
 
+  const invalidate = useInvalidate();
+
   const { data, isLoading } = useApiQuery({
     queryKey: ['usuarios', filtrosAplicados],
     queryFn: () => usuariosApi.listar(filtrosAplicados),
@@ -45,6 +48,15 @@ export function UsuariosPage() {
   const handleNuevo = () => {
     setUsuarioEdit(null);
     setMostrarForm(true);
+  };
+
+  // ✅ FIX: invalidar el cache de 'usuarios' fuerza el refetch
+  // independientemente de si los filtros cambiaron o no.
+  // Antes se usaba handleBuscar() que no refetchea si la queryKey
+  // no cambió (mismo objeto de filtros → TanStack Query lo ignora).
+  const handleFormSuccess = () => {
+    setMostrarForm(false);
+    invalidate(['usuarios']);
   };
 
   return (
@@ -79,10 +91,7 @@ export function UsuariosPage() {
         <FormUsuario
           usuario={usuarioEdit}
           onClose={() => setMostrarForm(false)}
-          onSuccess={() => {
-            setMostrarForm(false);
-            handleBuscar();
-          }}
+          onSuccess={handleFormSuccess}
         />
       )}
     </div>

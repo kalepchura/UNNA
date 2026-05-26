@@ -4,6 +4,7 @@ import { AdminRoute } from './admin-route';
 import { AppShell } from '@/components/layout/app-shell';
 
 import { LoginPage } from '@/features/auth/login-page';
+import { ResetPasswordPage } from '@/features/auth/reset-password-page';
 import { CatalogosPage } from '@/features/catalogos/catalogos-page';
 
 // Fallas
@@ -33,7 +34,11 @@ import { UsuariosPage } from '@/features/usuarios/usuarios-page';
 export function AppRoutes() {
   return (
     <Routes>
+      {/* Rutas públicas */}
       <Route path="/login" element={<LoginPage />} />
+
+      {/* Ruta pública: el usuario llega aquí desde el link del email de invitación */}
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
 
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>

@@ -7,7 +7,7 @@
  * Espejo de los DTOs del backend en:
  *   backend/src/modules/fallas/dto/falla-riel/
  *
- * Patrón "3 tipos por entidad":
+ * Patrón "4 tipos por entidad":
  *   1. FallaRiel              → lo que recibimos del backend (response)
  *   2. CrearFallaRielDto      → lo que enviamos al crear
  *   3. ActualizarFallaRielDto → lo que enviamos al actualizar
@@ -16,6 +16,16 @@
  */
 
 import type { TipoVia, LadoRiel } from '@/lib/types/common';
+import type {
+  TipoDefectoRiel,
+  ElementoAfectadoRiel,
+  ZonaAfectadaRiel,
+  PerfilFallaRiel,
+  AltaBaja,
+  EstadoFalla,
+  AccionRiel,
+} from '@/lib/types/enums/fallas.enum';
+import type { AccionRielResponse } from './accion-riel.types';
 
 // ============================================================
 // 1. RESPONSE — Falla riel que devuelve el backend
@@ -24,9 +34,14 @@ import type { TipoVia, LadoRiel } from '@/lib/types/common';
 /**
  * Falla detectada en el riel, tal como la devuelve el backend.
  *
- * Incluye datos directos (los que ingresa el usuario), datos
- * calculados automáticamente (tramo, curvas, velocidad) y
- * datos de archivos adjuntos.
+ * Incluye:
+ *  - Datos directos (los que ingresa el usuario)
+ *  - Caracterización del defecto (FASE 2: enums opcionales)
+ *  - Medidas del defecto (FASE 2: numéricos opcionales)
+ *  - Estado desnormalizado (FASE 2: refleja la última acción)
+ *  - Datos calculados automáticamente (tramo, curvas, velocidad)
+ *  - Datos de archivos adjuntos
+ *  - Acciones (opcional, solo viene en endpoint de detalle)
  *
  * IMPORTANTE: las fechas vienen como string ISO (no Date),
  * porque viajan por JSON. Si necesitas un Date, conviértelo
@@ -43,7 +58,29 @@ export interface FallaRiel {
   causa: string | null;
   origen: string | null;
 
-  // ----- Datos calculados por el backend -----
+  // ----- FASE 2 — Caracterización del defecto -----
+  // Estos campos SIEMPRE vienen con valor (default SIN_DEFINIR o NO_APLICA)
+  tipoDefecto: TipoDefectoRiel;
+  elementoAfectado: ElementoAfectadoRiel;
+  zonaAfectada: ZonaAfectadaRiel;
+  perfil: PerfilFallaRiel;
+  altaBaja: AltaBaja;
+
+  // ----- FASE 2 — Medidas del defecto (nullable: pueden no haberse medido) -----
+  progresivaFinal: number | null;
+  largo: number | null;
+  ancho: number | null;
+  profundidad: number | null;
+  numeroFoto: number | null;
+  tipoOnda: string | null;
+
+  // ----- FASE 2 — Estado desnormalizado (refleja la última acción) -----
+  estadoActual: EstadoFalla;
+  accionActual: AccionRiel | null;
+  ptActual: string | null;
+  fechaEjecucionActual: string | null;
+
+  // ----- Datos calculados por el backend (geografía) -----
   velocidadKmh: number | null;
 
   tramoId: number;
@@ -66,6 +103,12 @@ export interface FallaRiel {
   creadoEn: string;
   actualizadoEn: string;
   eliminado: boolean;
+
+  // ----- FASE 2 — Timeline de acciones (solo viene en GET /:id) -----
+  // En el listado este campo NO viene (queda undefined).
+  // En el detalle viene con el historial completo de acciones activas
+  // ordenado cronológicamente ascendente.
+  acciones?: AccionRielResponse[];
 }
 
 // ============================================================
@@ -73,13 +116,19 @@ export interface FallaRiel {
 // ============================================================
 
 /**
- * Datos requeridos para crear una falla de riel.
+ * Datos para crear una falla de riel.
  *
- * El usuario SOLO envía los datos directos. El backend
- * calcula automáticamente tramo, curvas y velocidad a partir
- * de (progresiva, via). Por eso esos campos NO se incluyen aquí.
+ * Obligatorios: progresiva, via, fecha, carril.
+ * El backend calcula tramo, curvas y velocidad desde (progresiva, via).
+ *
+ * Los campos descriptivos de FASE 2 son TODOS opcionales. Si no
+ * vienen, el backend aplica los defaults (SIN_DEFINIR, NO_APLICA).
+ * Esto permite que el inspector registre fallas con datos parciales
+ * en campo y complete después.
  *
  * Los archivos se suben en endpoints separados después de crear.
+ * Los 4 campos de "estado actual" NO se envían: el backend siempre
+ * los inicializa en NO_ATENDIDO con nulls.
  */
 export interface CrearFallaRielDto {
   /** Progresiva en metros desde el origen. */
@@ -94,6 +143,21 @@ export interface CrearFallaRielDto {
   causa?: string;
   /** Origen o antecedente. Opcional. Máx 2000 caracteres. */
   origen?: string;
+
+  // ----- FASE 2 — Caracterización (opcionales, default SIN_DEFINIR) -----
+  tipoDefecto?: TipoDefectoRiel;
+  elementoAfectado?: ElementoAfectadoRiel;
+  zonaAfectada?: ZonaAfectadaRiel;
+  perfil?: PerfilFallaRiel;
+  altaBaja?: AltaBaja;
+
+  // ----- FASE 2 — Medidas (opcionales numéricas) -----
+  progresivaFinal?: number;
+  largo?: number;
+  ancho?: number;
+  profundidad?: number;
+  numeroFoto?: number;
+  tipoOnda?: string;
 }
 
 // ============================================================
@@ -106,6 +170,10 @@ export interface CrearFallaRielDto {
  *
  * Si cambias `progresiva` o `via`, el backend recalcula
  * automáticamente tramo, curvas y velocidad.
+ *
+ * Los 4 campos de "estado actual" no se aceptan aquí: se
+ * modifican exclusivamente creando/editando acciones (otro
+ * endpoint).
  */
 export type ActualizarFallaRielDto = Partial<CrearFallaRielDto>;
 
@@ -118,8 +186,11 @@ export type ActualizarFallaRielDto = Partial<CrearFallaRielDto>;
  *
  * IMPORTANTE: los filtros geográficos viajan como IDs (no códigos).
  * El frontend ya tiene los catálogos cargados con sus IDs y solo
- * envía los IDs de los seleccionados. Más rápido y consistente
- * con los gráficos.
+ * envía los IDs de los seleccionados.
+ *
+ * Nota: el backend de momento NO acepta filtros por enum nuevo
+ * en el listado (eso fue decisión de F-1: gráficos sí, listado no).
+ * Si en el futuro se quieren agregar, agregar aquí Y en el backend.
  */
 export interface FiltrosFallaRiel {
   /** IDs de tramos seleccionados en el dropdown. */

@@ -1,6 +1,21 @@
 /**
  * Formulario de Falla Riel — CREAR y EDITAR.
  *
+ * FASE 2: agregados 11 campos nuevos opcionales en 3 Cards adicionales:
+ *  - Caracterización del defecto (5 enums: tipoDefecto, elementoAfectado,
+ *    zonaAfectada, perfil, altaBaja)
+ *  - Medidas del defecto (5 numéricos: progresivaFinal, largo, ancho,
+ *    profundidad, numeroFoto)
+ *  - Otros datos (tipoOnda — texto libre)
+ *
+ * Reglas aplicadas:
+ *  - Todos los enums arrancan con SIN_DEFINIR / NO_APLICA como default.
+ *    Siempre se envían al backend (no se omiten).
+ *  - Los numéricos arrancan en blanco y se envían solo si tienen valor.
+ *  - Bloqueo coherente: TODOS los campos se bloquean después de crear
+ *    (mismo patrón que los campos originales).
+ *  - reset() actualizado para incluir todos los campos al editar.
+ *
  * 🔑 FIX bug Select vacío al editar:
  *  - Se usa reset() en lugar de values prop para garantizar
  *    que los Controller se actualicen correctamente.
@@ -44,6 +59,20 @@ import { catalogosApi } from '@/lib/api/catalogos.api';
 import { queryKeys } from '@/lib/query-keys';
 import { TipoVia, LadoRiel, TipoArchivoFalla } from '@/lib/types/common';
 
+// FASE 2 — Enums nuevos
+import {
+  TipoDefectoRiel,
+  ElementoAfectadoRiel,
+  ZonaAfectadaRiel,
+  PerfilFallaRiel,
+  AltaBaja,
+  LABEL_TIPO_DEFECTO,
+  LABEL_ELEMENTO_AFECTADO,
+  LABEL_ZONA_AFECTADA,
+  LABEL_PERFIL_FALLA,
+  LABEL_ALTA_BAJA,
+} from '@/lib/types/enums/fallas.enum';
+
 import type {
   CrearFallaRielDto,
   ActualizarFallaRielDto,
@@ -53,7 +82,12 @@ const TEXTO_POR_DEFINIR = 'Por definir';
 const TEXTO_TANGENTE = 'Tangente';
 const DEBOUNCE_MS = 600;
 
+// ============================================================
+// SCHEMA ZOD (con campos nuevos opcionales)
+// ============================================================
+
 const fallaRielSchema = z.object({
+  // ----- Campos originales (obligatorios) -----
   progresiva: z
     .number({ message: 'Debe ser un número entero' })
     .int('Debe ser un número entero')
@@ -66,9 +100,48 @@ const fallaRielSchema = z.object({
   carril: z.nativeEnum(LadoRiel, { message: 'Selecciona un carril' }),
   causa: z.string().max(2000, 'Máx 2000 caracteres').optional(),
   origen: z.string().max(2000, 'Máx 2000 caracteres').optional(),
+
+  // ----- FASE 2 — Caracterización (enums con default SIN_DEFINIR / NO_APLICA) -----
+  tipoDefecto: z.nativeEnum(TipoDefectoRiel),
+  elementoAfectado: z.nativeEnum(ElementoAfectadoRiel),
+  zonaAfectada: z.nativeEnum(ZonaAfectadaRiel),
+  perfil: z.nativeEnum(PerfilFallaRiel),
+  altaBaja: z.nativeEnum(AltaBaja),
+
+  // ----- FASE 2 — Medidas (numéricos opcionales) -----
+  // Se aceptan como undefined cuando el usuario deja el input vacío.
+  progresivaFinal: z
+    .number({ message: 'Debe ser un número' })
+    .int('Debe ser un entero')
+    .min(0, 'No puede ser negativa')
+    .optional(),
+  largo: z
+    .number({ message: 'Debe ser un número' })
+    .min(0, 'No puede ser negativo')
+    .optional(),
+  ancho: z
+    .number({ message: 'Debe ser un número' })
+    .min(0, 'No puede ser negativo')
+    .optional(),
+  profundidad: z
+    .number({ message: 'Debe ser un número' })
+    .min(0, 'No puede ser negativa')
+    .optional(),
+  numeroFoto: z
+    .number({ message: 'Debe ser un número' })
+    .int('Debe ser un entero')
+    .min(0, 'No puede ser negativo')
+    .optional(),
+
+  // ----- FASE 2 — Otros -----
+  tipoOnda: z.string().max(100, 'Máx 100 caracteres').optional(),
 });
 
 type FallaRielFormData = z.infer<typeof fallaRielSchema>;
+
+// ============================================================
+// HOOKS HELPER (sin cambios desde tu versión original)
+// ============================================================
 
 function useTramoVelocidad(progresiva: number | null) {
   const { data: tramosTabla = [] } = useApiQuery({
@@ -129,6 +202,10 @@ function useCurvas(progresiva: number | null, via: TipoVia | undefined) {
 
   return { curvaH, curvaV };
 }
+
+// ============================================================
+// SECCIÓN DE ARCHIVOS (sin cambios)
+// ============================================================
 
 function SeccionArchivos({
   fallaId,
@@ -252,6 +329,10 @@ function SeccionArchivos({
   );
 }
 
+// ============================================================
+// PROPS
+// ============================================================
+
 interface FallaRielFormPageProps {
   /** Si se provee, el formulario corre en "modo embebido" (sin ruta).
    *  Pasa null para crear, un número para editar. */
@@ -261,6 +342,10 @@ interface FallaRielFormPageProps {
   /** Callback cuando se completa con éxito. Recibe el id creado/actualizado. */
   onSuccess?: (id: number) => void;
 }
+
+// ============================================================
+// COMPONENTE PRINCIPAL
+// ============================================================
 
 export function FallaRielFormPage(props: FallaRielFormPageProps = {}) {
   const { idOverride, onClose, onSuccess } = props;
@@ -297,7 +382,7 @@ export function FallaRielFormPage(props: FallaRielFormPageProps = {}) {
     useState<number | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 🔑 FORMULARIO CON RESET en lugar de values prop
+  // 🔑 FORMULARIO con defaults explícitos para los enums nuevos
   const form = useForm<FallaRielFormData>({
     resolver: zodResolver(fallaRielSchema),
     mode: 'onSubmit',
@@ -308,6 +393,19 @@ export function FallaRielFormPage(props: FallaRielFormPageProps = {}) {
       carril: undefined,
       causa: '',
       origen: '',
+      // FASE 2 — defaults de enums opcionales
+      tipoDefecto: TipoDefectoRiel.SIN_DEFINIR,
+      elementoAfectado: ElementoAfectadoRiel.SIN_DEFINIR,
+      zonaAfectada: ZonaAfectadaRiel.SIN_DEFINIR,
+      perfil: PerfilFallaRiel.SIN_DEFINIR,
+      altaBaja: AltaBaja.NO_APLICA,
+      // Medidas: undefined para que aparezcan vacías visualmente
+      progresivaFinal: undefined,
+      largo: undefined,
+      ancho: undefined,
+      profundidad: undefined,
+      numeroFoto: undefined,
+      tipoOnda: '',
     },
   });
 
@@ -325,23 +423,32 @@ export function FallaRielFormPage(props: FallaRielFormPageProps = {}) {
   const progresivaActual = watch('progresiva');
 
   // 🔑 RESET cuando se carga la falla a editar
+  // Incluye TODOS los campos nuevos para que los selects no queden vacíos.
   useEffect(() => {
     if (esEdicion && fallaActual) {
-      console.log('🔄 Reseteando formulario con datos:', {
-        progresiva: fallaActual.progresiva,
-        via: fallaActual.via,
-        carril: fallaActual.carril,
-      });
-      
       reset({
+        // Originales
         progresiva: fallaActual.progresiva,
         via: fallaActual.via,
         fecha: fallaActual.fecha.split('T')[0],
         carril: fallaActual.carril,
         causa: fallaActual.causa ?? '',
         origen: fallaActual.origen ?? '',
+        // FASE 2 — Caracterización (siempre vienen con valor desde backend)
+        tipoDefecto: fallaActual.tipoDefecto,
+        elementoAfectado: fallaActual.elementoAfectado,
+        zonaAfectada: fallaActual.zonaAfectada,
+        perfil: fallaActual.perfil,
+        altaBaja: fallaActual.altaBaja,
+        // FASE 2 — Medidas (pueden ser null en BD → undefined en form)
+        progresivaFinal: fallaActual.progresivaFinal ?? undefined,
+        largo: fallaActual.largo ?? undefined,
+        ancho: fallaActual.ancho ?? undefined,
+        profundidad: fallaActual.profundidad ?? undefined,
+        numeroFoto: fallaActual.numeroFoto ?? undefined,
+        tipoOnda: fallaActual.tipoOnda ?? '',
       });
-      
+
       setProgresivaInput(String(fallaActual.progresiva));
       setProgresivaConfirmada(fallaActual.progresiva);
     }
@@ -397,16 +504,43 @@ export function FallaRielFormPage(props: FallaRielFormPageProps = {}) {
     }
   };
 
+  // ============================================================
+  // SUBMIT
+  // ============================================================
+
   const onSubmit = async (data: FallaRielFormData) => {
+    // Helper: convierte string vacío / undefined → undefined (no enviar al backend)
+    const opt = <T,>(v: T | '' | undefined): T | undefined =>
+      v === '' || v === undefined ? undefined : v;
+
+    // Payload común con todos los campos nuevos
+    const payloadBase = {
+      // Originales
+      progresiva: data.progresiva,
+      via: data.via,
+      fecha: data.fecha,
+      carril: data.carril,
+      causa: data.causa || undefined,
+      origen: data.origen || undefined,
+
+      // FASE 2 — Enums (SIEMPRE se envían con valor)
+      tipoDefecto: data.tipoDefecto,
+      elementoAfectado: data.elementoAfectado,
+      zonaAfectada: data.zonaAfectada,
+      perfil: data.perfil,
+      altaBaja: data.altaBaja,
+
+      // FASE 2 — Medidas (solo se envían si tienen valor)
+      progresivaFinal: opt(data.progresivaFinal),
+      largo: opt(data.largo),
+      ancho: opt(data.ancho),
+      profundidad: opt(data.profundidad),
+      numeroFoto: opt(data.numeroFoto),
+      tipoOnda: data.tipoOnda || undefined,
+    };
+
     if (esEdicion) {
-      const dto: ActualizarFallaRielDto = {
-        progresiva: data.progresiva,
-        via: data.via,
-        fecha: data.fecha,
-        carril: data.carril,
-        causa: data.causa || undefined,
-        origen: data.origen || undefined,
-      };
+      const dto: ActualizarFallaRielDto = payloadBase;
       const actualizada = await actualizarMut.mutateAsync({
         id: fallaId!,
         dto,
@@ -417,21 +551,15 @@ export function FallaRielFormPage(props: FallaRielFormPageProps = {}) {
         navigate(`/fallas/riel/${actualizada.id}`);
       }
     } else {
-      const dto: CrearFallaRielDto = {
-        progresiva: data.progresiva,
-        via: data.via,
-        fecha: data.fecha,
-        carril: data.carril,
-        causa: data.causa || undefined,
-        origen: data.origen || undefined,
-      };
+      const dto: CrearFallaRielDto = payloadBase;
       const creada = await crearMut.mutateAsync(dto);
       setFallaIdCreada(creada.id);
-      // En modo embebido, no notificamos onSuccess aún — el usuario sigue
-      // viendo la pantalla "Banner creado" donde puede subir archivos antes
-      // de cerrar manualmente.
     }
   };
+
+  // ============================================================
+  // ESTADO COMPUTADO
+  // ============================================================
 
   const idParaArchivos = esEdicion ? fallaId : fallaIdCreada;
   const mostrarArchivos = idParaArchivos !== null;
@@ -475,6 +603,11 @@ export function FallaRielFormPage(props: FallaRielFormPageProps = {}) {
         : TEXTO_TANGENTE;
 
   const mostrarBotones = esEdicion || fallaIdCreada === null;
+  const disabledTrasCrear = fallaIdCreada !== null;
+
+  // ============================================================
+  // GUARDS DE LOADING / NOT FOUND
+  // ============================================================
 
   if (esEdicion && cargandoFalla) {
     return <p className="p-4">Cargando falla...</p>;
@@ -496,6 +629,10 @@ export function FallaRielFormPage(props: FallaRielFormPageProps = {}) {
       </div>
     );
   }
+
+  // ============================================================
+  // RENDER
+  // ============================================================
 
   return (
     <div className={isEmbedded ? 'space-y-4' : 'pagina-form-riel p-4 space-y-4'}>
@@ -519,12 +656,13 @@ export function FallaRielFormPage(props: FallaRielFormPageProps = {}) {
       )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        {/* ============================================================ */}
         {/* ── DATOS PRINCIPALES ── */}
+        {/* ============================================================ */}
         <Card className="p-4 space-y-4">
           <h2 className="text-lg font-semibold">Datos principales</h2>
 
           <div className="grid gap-4 md:grid-cols-2">
-            {/* Progresiva */}
             <div className="form-campo">
               <Label htmlFor="progresiva">Progresiva (m) *</Label>
               <Input
@@ -541,7 +679,7 @@ export function FallaRielFormPage(props: FallaRielFormPageProps = {}) {
                 }}
                 placeholder="Ingresa la progresiva"
                 autoComplete="off"
-                disabled={fallaIdCreada !== null}
+                disabled={disabledTrasCrear}
               />
               {errors.progresiva && (
                 <p className="text-sm text-destructive mt-1">
@@ -550,13 +688,12 @@ export function FallaRielFormPage(props: FallaRielFormPageProps = {}) {
               )}
             </div>
 
-            {/* Fecha */}
             <div className="form-campo">
               <Label htmlFor="fecha">Fecha de detección *</Label>
               <Input
                 id="fecha"
                 type="date"
-                disabled={fallaIdCreada !== null}
+                disabled={disabledTrasCrear}
                 {...register('fecha')}
               />
               {errors.fecha && (
@@ -566,7 +703,6 @@ export function FallaRielFormPage(props: FallaRielFormPageProps = {}) {
               )}
             </div>
 
-            {/* 🔑 Vía con Controller - con key para forzar re-render */}
             <div className="form-campo">
               <Label>Vía *</Label>
               <Controller
@@ -577,7 +713,7 @@ export function FallaRielFormPage(props: FallaRielFormPageProps = {}) {
                     key={`via-${field.value}`}
                     value={field.value ?? ''}
                     onValueChange={field.onChange}
-                    disabled={fallaIdCreada !== null}
+                    disabled={disabledTrasCrear}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecciona una vía" />
@@ -598,7 +734,6 @@ export function FallaRielFormPage(props: FallaRielFormPageProps = {}) {
               )}
             </div>
 
-            {/* 🔑 Carril con Controller - con key para forzar re-render */}
             <div className="form-campo">
               <Label>Carril *</Label>
               <Controller
@@ -609,7 +744,7 @@ export function FallaRielFormPage(props: FallaRielFormPageProps = {}) {
                     key={`carril-${field.value}`}
                     value={field.value ?? ''}
                     onValueChange={field.onChange}
-                    disabled={fallaIdCreada !== null}
+                    disabled={disabledTrasCrear}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecciona un carril" />
@@ -634,7 +769,9 @@ export function FallaRielFormPage(props: FallaRielFormPageProps = {}) {
           </div>
         </Card>
 
+        {/* ============================================================ */}
         {/* ── RELACIONES CALCULADAS ── */}
+        {/* ============================================================ */}
         <Card className="p-4 space-y-3">
           <h2 className="text-lg font-semibold">
             Datos calculados automáticamente
@@ -687,7 +824,280 @@ export function FallaRielFormPage(props: FallaRielFormPageProps = {}) {
           </div>
         </Card>
 
+        {/* ============================================================ */}
+        {/* ── FASE 2 — CARACTERIZACIÓN DEL DEFECTO ── */}
+        {/* ============================================================ */}
+        <Card className="p-4 space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold">Caracterización del defecto</h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              Opcional · Si no se conoce el dato, dejar en "Sin definir"
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Tipo de defecto */}
+            <div className="form-campo">
+              <Label>Tipo de defecto</Label>
+              <Controller
+                name="tipoDefecto"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    key={`tipoDefecto-${field.value}`}
+                    value={field.value ?? ''}
+                    onValueChange={field.onChange}
+                    disabled={disabledTrasCrear}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(LABEL_TIPO_DEFECTO).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+
+            {/* Elemento afectado */}
+            <div className="form-campo">
+              <Label>Elemento afectado</Label>
+              <Controller
+                name="elementoAfectado"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    key={`elementoAfectado-${field.value}`}
+                    value={field.value ?? ''}
+                    onValueChange={field.onChange}
+                    disabled={disabledTrasCrear}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(LABEL_ELEMENTO_AFECTADO).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+
+            {/* Zona afectada */}
+            <div className="form-campo">
+              <Label>Zona afectada</Label>
+              <Controller
+                name="zonaAfectada"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    key={`zonaAfectada-${field.value}`}
+                    value={field.value ?? ''}
+                    onValueChange={field.onChange}
+                    disabled={disabledTrasCrear}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(LABEL_ZONA_AFECTADA).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+
+            {/* Perfil */}
+            <div className="form-campo">
+              <Label>Perfil del riel</Label>
+              <Controller
+                name="perfil"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    key={`perfil-${field.value}`}
+                    value={field.value ?? ''}
+                    onValueChange={field.onChange}
+                    disabled={disabledTrasCrear}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(LABEL_PERFIL_FALLA).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+
+            {/* Alta / Baja (solo curvas) */}
+            <div className="form-campo md:col-span-2">
+              <Label>Alta / Baja (solo si está en curva)</Label>
+              <Controller
+                name="altaBaja"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    key={`altaBaja-${field.value}`}
+                    value={field.value ?? ''}
+                    onValueChange={field.onChange}
+                    disabled={disabledTrasCrear}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(LABEL_ALTA_BAJA).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                En tangentes, mantener "No aplica".
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        {/* ============================================================ */}
+        {/* ── FASE 2 — MEDIDAS DEL DEFECTO ── */}
+        {/* ============================================================ */}
+        <Card className="p-4 space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold">Medidas del defecto</h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              Opcional · Solo completar si se realizaron mediciones en campo
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="form-campo">
+              <Label htmlFor="progresivaFinal">Progresiva final (m)</Label>
+              <Input
+                id="progresivaFinal"
+                type="number"
+                step="1"
+                min="0"
+                placeholder="Si el defecto abarca un tramo"
+                disabled={disabledTrasCrear}
+                {...register('progresivaFinal', {
+                  setValueAs: (v) => (v === '' || v === null ? undefined : Number(v)),
+                })}
+              />
+              {errors.progresivaFinal && (
+                <p className="text-sm text-destructive mt-1">
+                  {errors.progresivaFinal.message}
+                </p>
+              )}
+            </div>
+
+            <div className="form-campo">
+              <Label htmlFor="largo">Largo (mm)</Label>
+              <Input
+                id="largo"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Ej: 57.5"
+                disabled={disabledTrasCrear}
+                {...register('largo', {
+                  setValueAs: (v) => (v === '' || v === null ? undefined : Number(v)),
+                })}
+              />
+              {errors.largo && (
+                <p className="text-sm text-destructive mt-1">
+                  {errors.largo.message}
+                </p>
+              )}
+            </div>
+
+            <div className="form-campo">
+              <Label htmlFor="ancho">Ancho (mm)</Label>
+              <Input
+                id="ancho"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Ej: 12.0"
+                disabled={disabledTrasCrear}
+                {...register('ancho', {
+                  setValueAs: (v) => (v === '' || v === null ? undefined : Number(v)),
+                })}
+              />
+              {errors.ancho && (
+                <p className="text-sm text-destructive mt-1">
+                  {errors.ancho.message}
+                </p>
+              )}
+            </div>
+
+            <div className="form-campo">
+              <Label htmlFor="profundidad">Profundidad (mm)</Label>
+              <Input
+                id="profundidad"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Ej: 0.5"
+                disabled={disabledTrasCrear}
+                {...register('profundidad', {
+                  setValueAs: (v) => (v === '' || v === null ? undefined : Number(v)),
+                })}
+              />
+              {errors.profundidad && (
+                <p className="text-sm text-destructive mt-1">
+                  {errors.profundidad.message}
+                </p>
+              )}
+            </div>
+
+            <div className="form-campo md:col-span-2">
+              <Label htmlFor="numeroFoto">N° de foto</Label>
+              <Input
+                id="numeroFoto"
+                type="number"
+                step="1"
+                min="0"
+                placeholder="Correlativo del reporte físico"
+                disabled={disabledTrasCrear}
+                {...register('numeroFoto', {
+                  setValueAs: (v) => (v === '' || v === null ? undefined : Number(v)),
+                })}
+              />
+              {errors.numeroFoto && (
+                <p className="text-sm text-destructive mt-1">
+                  {errors.numeroFoto.message}
+                </p>
+              )}
+            </div>
+          </div>
+        </Card>
+
+        {/* ============================================================ */}
         {/* ── CAUSA Y ORIGEN ── */}
+        {/* ============================================================ */}
         <Card className="p-4 space-y-4">
           <h2 className="text-lg font-semibold">Causa y origen (opcional)</h2>
           <div className="grid gap-4 md:grid-cols-2">
@@ -697,7 +1107,7 @@ export function FallaRielFormPage(props: FallaRielFormPageProps = {}) {
                 id="causa"
                 rows={4}
                 placeholder="Descripción libre de la causa..."
-                disabled={fallaIdCreada !== null}
+                disabled={disabledTrasCrear}
                 {...register('causa')}
               />
               {errors.causa && (
@@ -712,7 +1122,7 @@ export function FallaRielFormPage(props: FallaRielFormPageProps = {}) {
                 id="origen"
                 rows={4}
                 placeholder="De dónde proviene la falla..."
-                disabled={fallaIdCreada !== null}
+                disabled={disabledTrasCrear}
                 {...register('origen')}
               />
               {errors.origen && (
@@ -724,6 +1134,38 @@ export function FallaRielFormPage(props: FallaRielFormPageProps = {}) {
           </div>
         </Card>
 
+        {/* ============================================================ */}
+        {/* ── FASE 2 — OTROS DATOS ── */}
+        {/* ============================================================ */}
+        <Card className="p-4 space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold">Otros datos (opcional)</h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              Información complementaria sobre el defecto
+            </p>
+          </div>
+
+          <div className="form-campo">
+            <Label htmlFor="tipoOnda">Tipo de onda</Label>
+            <Input
+              id="tipoOnda"
+              type="text"
+              maxLength={100}
+              placeholder="Solo aplica a defectos de ondulación"
+              disabled={disabledTrasCrear}
+              {...register('tipoOnda')}
+            />
+            {errors.tipoOnda && (
+              <p className="text-sm text-destructive mt-1">
+                {errors.tipoOnda.message}
+              </p>
+            )}
+          </div>
+        </Card>
+
+        {/* ============================================================ */}
+        {/* ── ARCHIVOS ── */}
+        {/* ============================================================ */}
         {mostrarArchivos && (
           <SeccionArchivos
             fallaId={idParaArchivos!}
@@ -732,6 +1174,9 @@ export function FallaRielFormPage(props: FallaRielFormPageProps = {}) {
           />
         )}
 
+        {/* ============================================================ */}
+        {/* ── BOTONES ── */}
+        {/* ============================================================ */}
         {mostrarBotones && (
           <div className="flex justify-end gap-2">
             {onClose ? (
@@ -753,7 +1198,6 @@ export function FallaRielFormPage(props: FallaRielFormPageProps = {}) {
           </div>
         )}
 
-        {/* En modo embebido, después de crear y subir archivos, botón "Listo" */}
         {isEmbedded && !esEdicion && fallaIdCreada !== null && (
           <div className="flex justify-end gap-2">
             <Button

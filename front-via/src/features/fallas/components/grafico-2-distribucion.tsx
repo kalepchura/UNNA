@@ -4,6 +4,11 @@
  * Renderizado como DONUT chart con ApexCharts.
  * Muestra el total de fallas en el centro.
  * Tooltip al hacer hover (etiquetas no se sobreponen visualmente).
+ *
+ * FASE 2.D — Fix:
+ *  - getSubtitleText ahora usa LABEL_CATEGORIA_G2 importado, en lugar
+ *    de un diccionario hardcodeado de 4 valores. Esto soporta las 11
+ *    categorías (las 4 originales + 7 de Fase 2.D).
  */
 
 import { useEffect, useRef } from 'react';
@@ -26,6 +31,10 @@ import {
 import { ChartExportButtons } from '@/components/charts/chart-export-buttons';
 
 import { Grafico2Response, Grafico2Filtros } from '../types/grafico-2.types';
+import {
+  CategoriaG2,
+  LABEL_CATEGORIA_G2,
+} from '@/lib/types/enums/fallas.enum';
 
 export type { Grafico2Response, Grafico2Filtros };
 
@@ -46,6 +55,19 @@ const COLORES_DONUT = [
   '#14b8a6', // teal
   '#f43f5e', // coral
 ];
+
+// Diccionarios locales pequeños (estos sí son cerrados, no crecen)
+const LABEL_TIPO_FALLA: Record<string, string> = {
+  RIEL: 'Solo Riel',
+  SOLDADURA: 'Solo Soldadura',
+  AMBAS: 'Riel + Soldadura',
+};
+
+const LABEL_TIPO_VIA: Record<string, string> = {
+  PAR: 'Solo Vía Par',
+  IMPAR: 'Solo Vía Impar',
+  AMBAS: 'Ambas Vías',
+};
 
 export function Grafico2Distribucion({
   data,
@@ -138,7 +160,7 @@ export function Grafico2Distribucion({
         },
       },
 
-      // 🚫 Etiquetas NO encima de rebanadas (como pediste)
+      // 🚫 Etiquetas NO encima de rebanadas
       dataLabels: {
         enabled: false,
       },
@@ -172,17 +194,18 @@ export function Grafico2Distribucion({
         horizontalAlign: 'center',
         fontSize: '13px',
         formatter: (
-  seriesName: string,
-  opts?: {
-    seriesIndex: number;
-    w: {
-      globals: {
-        series: number[];
-            };};}
+          seriesName: string,
+          opts?: {
+            seriesIndex: number;
+            w: {
+              globals: {
+                series: number[];
+              };
+            };
+          },
         ) => {
-        const valor = opts?.w.globals.series[opts.seriesIndex] ?? 0;
-
-        return `${seriesName}: ${valor}`;
+          const valor = opts?.w.globals.series[opts.seriesIndex] ?? 0;
+          return `${seriesName}: ${valor}`;
         },
       },
 
@@ -221,28 +244,17 @@ export function Grafico2Distribucion({
     const tipoFalla = config.tipoFalla ?? 'AMBAS';
     const tipoVia = config.tipoVia ?? 'AMBAS';
     const tramoIds = config.tramoIds ?? [];
-    const categoria = config.categoria ?? 'ACCION';
+    const categoria = config.categoria ?? CategoriaG2.ACCION;
     const fechaDesde = config.fechaDesde ?? '';
     const fechaHasta = config.fechaHasta ?? '';
 
-    const tipoFallaText = {
-      RIEL: 'Solo Riel',
-      SOLDADURA: 'Solo Soldadura',
-      AMBAS: 'Riel + Soldadura',
-    }[tipoFalla] ?? tipoFalla;
+    const tipoFallaText = LABEL_TIPO_FALLA[tipoFalla] ?? tipoFalla;
+    const tipoViaText = LABEL_TIPO_VIA[tipoVia] ?? tipoVia;
 
-    const tipoViaText = {
-      PAR: 'Solo Vía Par',
-      IMPAR: 'Solo Vía Impar',
-      AMBAS: 'Ambas Vías',
-    }[tipoVia] ?? tipoVia;
-
-    const categoriaText = {
-      ACCION: 'Acción',
-      CARRIL: 'Carril',
-      UBICACION_FALLA: 'Ubicación de Falla',
-      VIA: 'Vía',
-    }[categoria] ?? categoria;
+    // FASE 2.D — Usar LABEL_CATEGORIA_G2 importado (soporta las 11 categorías).
+    // El cast a CategoriaG2 es seguro porque el backend solo devuelve valores válidos.
+    const categoriaText =
+      LABEL_CATEGORIA_G2[categoria as CategoriaG2] ?? categoria;
 
     const tramosText =
       tramoIds.length === 0

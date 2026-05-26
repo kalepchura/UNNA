@@ -1,22 +1,59 @@
 /**
  * Página de detalle de una falla riel.
  *
- * UX:
- *  - Curva H/V null → "Tangente" en cursiva gris (sección recta).
- *  - Causa/Origen null → "Sin información" en cursiva gris.
+ * FASE 2 — Secciones agregadas:
+ *  - "Estado actual" (estadoActual, accionActual, ptActual, fechaEjecucionActual)
+ *  - "Caracterización del defecto" (5 enums con labels)
+ *  - "Medidas del defecto" (4 numéricos)
+ *  - "Otros datos" (tipoOnda)
+ *  - "Historial de acciones" (timeline visual)
+ *
+ * FASE 5 — Habilitados:
+ *  - Botón "+ Registrar acción" → abre modal en modo CREAR
+ *  - Botón "Editar" de cada acción → abre modal en modo EDITAR
+ *  - Botón "Eliminar" de cada acción → abre ConfirmDialog
+ *
+ * Filosofía de diseño:
+ *  - Se muestran TODOS los campos siempre, aunque estén vacíos o
+ *    en SIN_DEFINIR. Esto le permite al ingeniero ver qué falta
+ *    completar de un vistazo.
+ *  - Valores faltantes/SIN_DEFINIR/null se renderizan en cursiva
+ *    gris.
  */
 
+import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
-import { useState } from 'react';
 import {
   useFallaRiel,
   useEliminarFallaRiel,
 } from '@/features/fallas/hooks/use-fallas-riel';
+import { useEliminarAccionRiel } from '@/features/fallas/hooks/use-acciones-riel';
 import { ArchivoUploader } from '@/features/fallas/components/archivo-uploader';
 import { TipoArchivoFalla } from '@/lib/types/common';
+
+// FASE 2 — Componentes y enums
+import { BadgeEstadoFalla } from '@/features/fallas/components/badge-estado-falla';
+import { TimelineAccionesRiel } from '@/features/fallas/components/timeline-acciones-riel';
+// FASE 5 — Modal de acción
+import { AccionRielModal } from '@/features/fallas/components/accion-riel-modal';
+
+import {
+  TipoDefectoRiel,
+  ElementoAfectadoRiel,
+  ZonaAfectadaRiel,
+  PerfilFallaRiel,
+  AltaBaja,
+  LABEL_TIPO_DEFECTO,
+  LABEL_ELEMENTO_AFECTADO,
+  LABEL_ZONA_AFECTADA,
+  LABEL_PERFIL_FALLA,
+  LABEL_ALTA_BAJA,
+  LABEL_ACCION_RIEL,
+} from '@/lib/types/enums/fallas.enum';
+import type { AccionRielResponse } from '@/features/fallas/types/accion-riel.types';
 
 interface FallaRielDetallePageProps {
   /** Si se provee, se usa este id en lugar de useParams. */
@@ -35,9 +72,19 @@ export function FallaRielDetallePage(props: FallaRielDetallePageProps = {}) {
   const navigate = useNavigate();
   const [mostrarConfirmar, setMostrarConfirmar] = useState(false);
 
+  // FASE 5 — Estado del modal de acción
+  const [modalAccionAbierto, setModalAccionAbierto] = useState(false);
+  const [accionEditando, setAccionEditando] = useState<AccionRielResponse | null>(
+    null,
+  );
+  const [accionAEliminar, setAccionAEliminar] = useState<AccionRielResponse | null>(
+    null,
+  );
+
   const fallaId = idOverride ?? Number(idParam);
   const { data: falla, isLoading } = useFallaRiel(fallaId);
-  const eliminarMut = useEliminarFallaRiel();
+  const eliminarFallaMut = useEliminarFallaRiel();
+  const eliminarAccionMut = useEliminarAccionRiel();
 
   if (isLoading) {
     return <p className="p-4">Cargando falla...</p>;
@@ -58,8 +105,35 @@ export function FallaRielDetallePage(props: FallaRielDetallePageProps = {}) {
     );
   }
 
-  const handleEliminar = async () => {
-    await eliminarMut.mutateAsync(fallaId);
+  // ============================================================
+  // HANDLERS DE ACCIONES (FASE 5)
+  // ============================================================
+
+  const handleNuevaAccion = () => {
+    setAccionEditando(null); // Modo CREAR
+    setModalAccionAbierto(true);
+  };
+
+  const handleEditarAccion = (accion: AccionRielResponse) => {
+    setAccionEditando(accion); // Modo EDITAR
+    setModalAccionAbierto(true);
+  };
+
+  const handlePedirEliminarAccion = (accion: AccionRielResponse) => {
+    setAccionAEliminar(accion);
+  };
+
+  const handleConfirmarEliminarAccion = async () => {
+    if (!accionAEliminar) return;
+    await eliminarAccionMut.mutateAsync({
+      id: accionAEliminar.id,
+      fallaId,
+    });
+    setAccionAEliminar(null);
+  };
+
+  const handleEliminarFalla = async () => {
+    await eliminarFallaMut.mutateAsync(fallaId);
     if (onClose) {
       onClose();
     } else {
@@ -67,9 +141,13 @@ export function FallaRielDetallePage(props: FallaRielDetallePageProps = {}) {
     }
   };
 
+  // ============================================================
+  // RENDER
+  // ============================================================
+
   return (
     <div className={isEmbedded ? 'space-y-4' : 'pagina-detalle-riel p-4 space-y-4'}>
-      {/* Header — se oculta en modo embebido (lo provee el Sheet) */}
+      {/* Header */}
       {!isEmbedded && (
         <header className="flex items-center justify-between flex-wrap gap-2">
           <h1 className="text-2xl font-bold">Falla de Riel #{falla.id}</h1>
@@ -90,7 +168,6 @@ export function FallaRielDetallePage(props: FallaRielDetallePageProps = {}) {
         </header>
       )}
 
-      {/* En modo embebido, mostramos acciones compactas */}
       {isEmbedded && (
         <div className="flex flex-wrap items-center justify-end gap-2 border-b border-border pb-3">
           <Button
@@ -111,6 +188,43 @@ export function FallaRielDetallePage(props: FallaRielDetallePageProps = {}) {
         </div>
       )}
 
+      {/* ============================================================ */}
+      {/* FASE 2 — ESTADO ACTUAL */}
+      {/* ============================================================ */}
+      <Card className="p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Estado actual</h2>
+          <Button type="button" size="sm" onClick={handleNuevaAccion}>
+            + Registrar acción
+          </Button>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-4">
+          <div className="campo-detalle">
+            <p className="text-xs text-muted-foreground mb-1">Estado</p>
+            <BadgeEstadoFalla estado={falla.estadoActual} />
+          </div>
+
+          <CampoEnum
+            label="Última acción"
+            valor={falla.accionActual}
+            labels={LABEL_ACCION_RIEL}
+            placeholder="Sin acción registrada"
+          />
+
+          <CampoOpcional
+            label="PT actual"
+            valor={falla.ptActual}
+            placeholder="—"
+          />
+
+          <CampoFecha
+            label="Fecha ejecución"
+            iso={falla.fechaEjecucionActual}
+          />
+        </div>
+      </Card>
+
       {/* Datos principales */}
       <Card className="p-4 space-y-3">
         <h2 className="text-lg font-semibold">Datos principales</h2>
@@ -119,7 +233,15 @@ export function FallaRielDetallePage(props: FallaRielDetallePageProps = {}) {
             label="Fecha de detección"
             valor={formatearFecha(falla.fecha)}
           />
-          <Campo label="Progresiva" valor={`${falla.progresiva} m`} />
+          <Campo label="Progresiva inicial" valor={`${falla.progresiva} m`} />
+          <Campo
+            label="Progresiva final"
+            valor={
+              falla.progresivaFinal != null
+                ? `${falla.progresivaFinal} m`
+                : '—'
+            }
+          />
           <Campo label="Vía" valor={falla.via} />
           <Campo label="Carril" valor={falla.carril} />
           <Campo
@@ -141,15 +263,77 @@ export function FallaRielDetallePage(props: FallaRielDetallePageProps = {}) {
             label="Tramo"
             valor={`${falla.tramoCodigo} — ${falla.tramoNombre}`}
           />
-          {/* Curva H: null = Tangente */}
           <CampoTangente
             label="Curva horizontal"
             valor={falla.curvaHorizontalNombre}
           />
-          {/* Curva V: null = Tangente */}
           <CampoTangente
             label="Curva vertical"
             valor={falla.curvaVerticalNombre}
+          />
+        </div>
+      </Card>
+
+      {/* Caracterización del defecto */}
+      <Card className="p-4 space-y-3">
+        <h2 className="text-lg font-semibold">Caracterización del defecto</h2>
+        <div className="grid gap-3 md:grid-cols-3">
+          <CampoEnum
+            label="Tipo de defecto"
+            valor={falla.tipoDefecto}
+            labels={LABEL_TIPO_DEFECTO}
+            indefinidoSi={[TipoDefectoRiel.SIN_DEFINIR]}
+          />
+          <CampoEnum
+            label="Elemento afectado"
+            valor={falla.elementoAfectado}
+            labels={LABEL_ELEMENTO_AFECTADO}
+            indefinidoSi={[ElementoAfectadoRiel.SIN_DEFINIR]}
+          />
+          <CampoEnum
+            label="Zona afectada"
+            valor={falla.zonaAfectada}
+            labels={LABEL_ZONA_AFECTADA}
+            indefinidoSi={[ZonaAfectadaRiel.SIN_DEFINIR]}
+          />
+          <CampoEnum
+            label="Perfil del riel"
+            valor={falla.perfil}
+            labels={LABEL_PERFIL_FALLA}
+            indefinidoSi={[PerfilFallaRiel.SIN_DEFINIR]}
+          />
+          <CampoEnum
+            label="Alta / Baja"
+            valor={falla.altaBaja}
+            labels={LABEL_ALTA_BAJA}
+            indefinidoSi={[AltaBaja.NO_APLICA]}
+          />
+        </div>
+      </Card>
+
+      {/* Medidas del defecto */}
+      <Card className="p-4 space-y-3">
+        <h2 className="text-lg font-semibold">Medidas del defecto</h2>
+        <div className="grid gap-3 md:grid-cols-4">
+          <CampoMedida label="Largo" valor={falla.largo} unidad="mm" />
+          <CampoMedida label="Ancho" valor={falla.ancho} unidad="mm" />
+          <CampoMedida
+            label="Profundidad"
+            valor={falla.profundidad}
+            unidad="mm"
+          />
+          <CampoMedida label="N° de foto" valor={falla.numeroFoto} unidad="" />
+        </div>
+      </Card>
+
+      {/* Otros datos */}
+      <Card className="p-4 space-y-3">
+        <h2 className="text-lg font-semibold">Otros datos</h2>
+        <div className="grid gap-3 md:grid-cols-2">
+          <CampoOpcional
+            label="Tipo de onda"
+            valor={falla.tipoOnda}
+            placeholder="No aplica"
           />
         </div>
       </Card>
@@ -171,6 +355,30 @@ export function FallaRielDetallePage(props: FallaRielDetallePageProps = {}) {
             multilinea
           />
         </div>
+      </Card>
+
+      {/* ============================================================ */}
+      {/* HISTORIAL DE ACCIONES (TIMELINE) - FASE 5 cableado */}
+      {/* ============================================================ */}
+      <Card className="p-4 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Historial de acciones</h2>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={handleNuevaAccion}
+          >
+            + Registrar acción
+          </Button>
+        </div>
+
+        <TimelineAccionesRiel
+          fechaDeteccion={falla.fecha}
+          acciones={falla.acciones}
+          onEditar={handleEditarAccion}
+          onEliminar={handlePedirEliminarAccion}
+        />
       </Card>
 
       {/* Archivos */}
@@ -204,7 +412,11 @@ export function FallaRielDetallePage(props: FallaRielDetallePageProps = {}) {
         </div>
       </Card>
 
-      {/* Confirmar eliminar */}
+      {/* ============================================================ */}
+      {/* MODALES Y CONFIRMACIONES */}
+      {/* ============================================================ */}
+
+      {/* Confirmar eliminar FALLA */}
       <ConfirmDialog
         open={mostrarConfirmar}
         onOpenChange={setMostrarConfirmar}
@@ -212,7 +424,32 @@ export function FallaRielDetallePage(props: FallaRielDetallePageProps = {}) {
         descripcion="¿Estás seguro? La falla pasará a estado eliminado. Solo un administrador podrá restaurarla."
         etiquetaConfirmar="Eliminar"
         variante="destructive"
-        onConfirmar={handleEliminar}
+        onConfirmar={handleEliminarFalla}
+      />
+
+      {/* FASE 5 — Modal de crear/editar acción */}
+      <AccionRielModal
+        open={modalAccionAbierto}
+        onOpenChange={setModalAccionAbierto}
+        fallaId={fallaId}
+        accionActual={accionEditando}
+      />
+
+      {/* FASE 5 — Confirmar eliminar ACCIÓN */}
+      <ConfirmDialog
+        open={accionAEliminar !== null}
+        onOpenChange={(open) => {
+          if (!open) setAccionAEliminar(null);
+        }}
+        titulo="Eliminar acción"
+        descripcion={
+          accionAEliminar
+            ? `¿Eliminar la acción "${LABEL_ACCION_RIEL[accionAEliminar.accion]}"? Si era la más reciente, el estado de la falla se recalculará.`
+            : ''
+        }
+        etiquetaConfirmar="Eliminar"
+        variante="destructive"
+        onConfirmar={handleConfirmarEliminarAccion}
       />
     </div>
   );
@@ -237,10 +474,6 @@ function Campo({ label, valor, multilinea }: CampoProps) {
   );
 }
 
-/**
- * Campo donde null = "Tangente" (sección recta).
- * Aplica a curva horizontal y vertical de Riel.
- */
 function CampoTangente({
   label,
   valor,
@@ -260,9 +493,6 @@ function CampoTangente({
   );
 }
 
-/**
- * Campo opcional con placeholder customizable cuando es null.
- */
 function CampoOpcional({
   label,
   valor,
@@ -281,6 +511,83 @@ function CampoOpcional({
         <p className={multilinea ? 'whitespace-pre-wrap' : ''}>{valor}</p>
       ) : (
         <p className="italic text-muted-foreground">{placeholder}</p>
+      )}
+    </div>
+  );
+}
+
+function CampoEnum<T extends string>({
+  label,
+  valor,
+  labels,
+  indefinidoSi = [],
+  placeholder = 'Sin definir',
+}: {
+  label: string;
+  valor: T | null;
+  labels: Record<T, string>;
+  indefinidoSi?: T[];
+  placeholder?: string;
+}) {
+  if (valor === null) {
+    return (
+      <div className="campo-detalle">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="italic text-muted-foreground">{placeholder}</p>
+      </div>
+    );
+  }
+
+  const esIndefinido = indefinidoSi.includes(valor);
+
+  return (
+    <div className="campo-detalle">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className={esIndefinido ? 'italic text-muted-foreground' : ''}>
+        {labels[valor]}
+      </p>
+    </div>
+  );
+}
+
+function CampoMedida({
+  label,
+  valor,
+  unidad,
+}: {
+  label: string;
+  valor: number | null;
+  unidad: string;
+}) {
+  return (
+    <div className="campo-detalle">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      {valor != null ? (
+        <p>
+          {valor}
+          {unidad ? ` ${unidad}` : ''}
+        </p>
+      ) : (
+        <p className="italic text-muted-foreground">—</p>
+      )}
+    </div>
+  );
+}
+
+function CampoFecha({
+  label,
+  iso,
+}: {
+  label: string;
+  iso: string | null;
+}) {
+  return (
+    <div className="campo-detalle">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      {iso ? (
+        <p>{formatearFecha(iso)}</p>
+      ) : (
+        <p className="italic text-muted-foreground">—</p>
       )}
     </div>
   );

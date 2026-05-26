@@ -5,6 +5,7 @@
  * Cliente HTTP del módulo de fallas. Estructura:
  *
  *   fallasApi.riel.*        → CRUD + archivos de falla riel
+ *   fallasApi.acciones.*    → Historial de intervenciones (FASE 2)
  *   fallasApi.soldadura.*   → CRUD + imágenes de falla soldadura
  *   fallasApi.analytics.*   → KPIs y gráficos (1, 2, 3)
  *
@@ -24,6 +25,13 @@ import type {
   FiltrosFallaRiel,
 } from '@/features/fallas/types/falla-riel.types';
 
+// Tipos acción riel (FASE 2)
+import type {
+  AccionRielResponse,
+  CrearAccionRielDto,
+  ActualizarAccionRielDto,
+} from '@/features/fallas/types/accion-riel.types';
+
 // Tipos soldadura
 import type {
   FallaSoldaduraInox,
@@ -41,7 +49,7 @@ import type {
 // Enum tipo archivo
 import { TipoArchivoFalla } from '@/lib/types/common';
 
-// Tipos analytics (ya existentes en types/)
+// Tipos analytics
 import type {
   Grafico1Filtros,
   Grafico1Response,
@@ -60,17 +68,11 @@ import type { KpisFallasResponse } from '@/features/fallas/types/kpis-fallas.typ
 // TIPO DE ARCHIVO (helper)
 // ============================================================
 
-/**
- * Respuesta de subir archivo a una falla riel.
- */
 interface RespuestaSubirArchivo {
   nombreArchivo: string;
   rutaStorage: string;
 }
 
-/**
- * Respuesta de obtener URL firmada de archivo.
- */
 interface RespuestaUrlArchivo {
   url: string;
   nombre: string;
@@ -92,7 +94,10 @@ const riel = {
     return data;
   },
 
-  /** GET /fallas/riel/:id */
+  /**
+   * GET /fallas/riel/:id
+   * Devuelve la falla con el timeline de acciones (acciones array).
+   */
   obtener: async (id: number): Promise<FallaRiel> => {
     const { data } = await http.get<FallaRiel>(`/fallas/riel/${id}`);
     return data;
@@ -173,6 +178,92 @@ const riel = {
       `/fallas/riel/${id}/archivo/${tipo}/url`,
     );
     return data;
+  },
+};
+
+// ============================================================
+// ACCIONES DE FALLA RIEL (FASE 2 — Historial de intervenciones)
+// ============================================================
+
+const acciones = {
+  /**
+   * GET /fallas/riel/:fallaId/acciones
+   * Timeline cronológico (ascendente) de una falla.
+   * Solo acciones activas (eliminadas excluidas).
+   */
+  listarPorFalla: async (
+    fallaId: number,
+  ): Promise<AccionRielResponse[]> => {
+    const { data } = await http.get<AccionRielResponse[]>(
+      `/fallas/riel/${fallaId}/acciones`,
+    );
+    return data;
+  },
+
+  /**
+   * GET /fallas/riel/:fallaId/acciones/eliminadas (solo ADMIN)
+   * Timeline incluyendo acciones eliminadas (página de auditoría).
+   */
+  listarConEliminadas: async (
+    fallaId: number,
+  ): Promise<AccionRielResponse[]> => {
+    const { data } = await http.get<AccionRielResponse[]>(
+      `/fallas/riel/${fallaId}/acciones/eliminadas`,
+    );
+    return data;
+  },
+
+  /**
+   * POST /fallas/riel/:fallaId/acciones
+   * Crea una acción nueva. El backend sincroniza estadoActual
+   * de la falla padre automáticamente.
+   */
+  crear: async (
+    fallaId: number,
+    dto: CrearAccionRielDto,
+  ): Promise<AccionRielResponse> => {
+    const { data } = await http.post<AccionRielResponse>(
+      `/fallas/riel/${fallaId}/acciones`,
+      dto,
+    );
+    return data;
+  },
+
+  /** GET /fallas/riel/acciones/:id */
+  obtener: async (id: number): Promise<AccionRielResponse> => {
+    const { data } = await http.get<AccionRielResponse>(
+      `/fallas/riel/acciones/${id}`,
+    );
+    return data;
+  },
+
+  /**
+   * PATCH /fallas/riel/acciones/:id
+   * Edita una acción. Sincroniza estadoActual de la falla padre.
+   */
+  actualizar: async (
+    id: number,
+    dto: ActualizarAccionRielDto,
+  ): Promise<AccionRielResponse> => {
+    const { data } = await http.patch<AccionRielResponse>(
+      `/fallas/riel/acciones/${id}`,
+      dto,
+    );
+    return data;
+  },
+
+  /**
+   * DELETE /fallas/riel/acciones/:id (soft delete)
+   * Si era la acción más reciente, el estado de la falla padre
+   * se recalcula automáticamente.
+   */
+  eliminar: async (id: number): Promise<void> => {
+    await http.delete(`/fallas/riel/acciones/${id}`);
+  },
+
+  /** POST /fallas/riel/acciones/:id/restaurar (solo ADMIN) */
+  restaurar: async (id: number): Promise<void> => {
+    await http.post(`/fallas/riel/acciones/${id}/restaurar`);
   },
 };
 
@@ -330,6 +421,10 @@ const analytics = {
  *   await fallasApi.riel.crear({ progresiva: 100, via: 'PAR', ... });
  *   await fallasApi.riel.subirArchivo(1, TipoArchivoFalla.INTERNO, file);
  *
+ *   // FASE 2 — Acciones
+ *   const timeline = await fallasApi.acciones.listarPorFalla(1);
+ *   await fallasApi.acciones.crear(1, { accion: 'ESMERILADO', conclusion: 'PROGRAMADO' });
+ *
  *   const sold = await fallasApi.soldadura.buscar({});
  *   const imgs = await fallasApi.soldadura.listarImagenes(1);
  *
@@ -337,6 +432,7 @@ const analytics = {
  */
 export const fallasApi = {
   riel,
+  acciones,
   soldadura,
   analytics,
 };

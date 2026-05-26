@@ -37,8 +37,8 @@ export const queryKeys = {
   catalogos: {
     all: ['catalogos'] as const,
     tramos: ['catalogos', 'tramos'] as const,
-    tramosTabla: ['catalogos', 'tramos', 'tabla'] as const,  // ← NUEVO
-    tramosSelector: ['catalogos', 'tramos', 'selector'] as const,  // ← NUEVO
+    tramosTabla: ['catalogos', 'tramos', 'tabla'] as const,
+    tramosSelector: ['catalogos', 'tramos', 'selector'] as const,
     estaciones: ['catalogos', 'estaciones'] as const,
     estacionesTabla: ['catalogos', 'estaciones', 'tabla'] as const,
     estacionesSelector: ['catalogos', 'estaciones', 'selector'] as const,
@@ -51,7 +51,7 @@ export const queryKeys = {
     velocidades: ['catalogos', 'velocidades'] as const,
     velocidadesTabla: ['catalogos', 'velocidades', 'tabla'] as const,
     cambiavias: ['catalogos', 'cambiavias'] as const,
-    cambiaviasTabla: ['catalogos', 'cambiavias', 'tabla'] as const,      // ← NUEVO
+    cambiaviasTabla: ['catalogos', 'cambiavias', 'tabla'] as const,
     cambiaviasSelector: ['catalogos', 'cambiavias', 'selector'] as const,
     elementosDesgaste: ['catalogos', 'elementos-desgaste'] as const,
     elementosDesgasteTabla: ['catalogos', 'elementos-desgaste', 'tabla'] as const,
@@ -69,6 +69,16 @@ export const queryKeys = {
     grafico1: (config: unknown) => ['fallas', 'grafico1', config] as const,
     grafico2: (config: unknown) => ['fallas', 'grafico2', config] as const,
     grafico3: (config: unknown) => ['fallas', 'grafico3', config] as const,
+
+    // ----- FASE 2 — Acciones de falla riel (historial) -----
+    // Anidados bajo 'fallas' para que invalidate('fallas') refresque también
+    // las acciones cuando algo cambia globalmente.
+    accionesPorFalla: (fallaId: number) =>
+      ['fallas', 'riel', 'acciones', 'por-falla', fallaId] as const,
+    accionDetail: (id: number) =>
+      ['fallas', 'riel', 'acciones', 'detail', id] as const,
+    accionesEliminadasPorFalla: (fallaId: number) =>
+      ['fallas', 'riel', 'acciones', 'eliminadas', fallaId] as const,
   },
 
   // ----- Temperatura -----
@@ -109,5 +119,4 @@ export const queryKeys = {
     desgasteIndice: (filtros: unknown) => ['mapa-calor', 'desgaste-indice', filtros] as const,
     fallas: (filtros: unknown) => ['mapa-calor', 'fallas', filtros] as const,
   },
-    
 };
