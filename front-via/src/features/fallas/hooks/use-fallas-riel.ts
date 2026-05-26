@@ -2,8 +2,8 @@
  * Hooks de React Query para FallaRiel.
  *
  * Optimización:
- *  - useFallaRiel (detalle): staleTime 30s para evitar refetch
- *    excesivo cuando se edita o se navega entre páginas.
+ *  - useFallaRiel (detalle): staleTime 0 para forzar refetch
+ *    inmediato al invalidar y al montar el componente.
  */
 
 import { useQueryClient } from '@tanstack/react-query';
@@ -34,15 +34,15 @@ export function useFallasRiel(filtros: FiltrosFallaRiel) {
 
 /**
  * Detalle de una falla riel por id.
- * staleTime alto: el detalle no cambia constantemente, evitamos
- * refetches innecesarios al cambiar de pestaña o re-renderizar.
+ * staleTime: 0 → siempre se considera stale, forzando refetch
+ * cuando se monta el componente o se invalida.
  */
 export function useFallaRiel(id: number, habilitado = true) {
   return useApiQuery<FallaRiel>({
     queryKey: queryKeys.fallas.rielDetail(id),
     queryFn: () => fallasApi.riel.obtener(id),
     enabled: habilitado && id > 0,
-    staleTime: 0, // 🔑 30s: evita refetches al ganar foco
+    staleTime: 0,
   });
 }
 
