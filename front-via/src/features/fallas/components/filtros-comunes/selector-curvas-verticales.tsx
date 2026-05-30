@@ -1,10 +1,3 @@
-/**
- * Selector reutilizable de curvas verticales (multi-select con opción "Todas").
- * Mismo patrón que SelectorTramos.
- *
- * Usado en filtros de los 3 gráficos (Fase 1 — filtro de curva V).
- */
-
 import { MultiSelect } from '@/components/ui/multi-select';
 import { useCurvasVerticalesOptions } from '@/hooks/use-curvas-verticales-options';
 
@@ -12,14 +5,16 @@ interface SelectorCurvasVerticalesProps {
   value: number[];
   onChange: (ids: number[]) => void;
   placeholder?: string;
+  viaFiltro?: string;
 }
 
 export function SelectorCurvasVerticales({
   value,
   onChange,
   placeholder = 'Seleccionar curvas verticales...',
+  viaFiltro,
 }: SelectorCurvasVerticalesProps) {
-  const { options } = useCurvasVerticalesOptions();
+  const { options } = useCurvasVerticalesOptions(viaFiltro);
 
   return (
     <>

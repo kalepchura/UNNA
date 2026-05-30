@@ -57,9 +57,9 @@ export const LEYENDA_TEMPERATURA: ItemLeyenda[] = [
 ];
 
 export const LEYENDA_DESGASTE_GENERAL: ItemLeyenda[] = [
-  { color: 'VERDE', texto: '< 2 mm' },
-  { color: 'AMARILLO', texto: '2 – 3.4 mm' },
-  { color: 'ROJO', texto: '≥ 3.5 mm' },
+  { color: 'VERDE', texto: '< 6.5 mm' },
+  { color: 'AMARILLO', texto: '6.5 – 8 mm' },
+  { color: 'ROJO', texto: '> 8 mm' },
   { color: 'GRIS', texto: 'Sin datos' },
 ];
 

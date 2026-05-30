@@ -7,7 +7,7 @@ import { RolUsuario } from '../../src/common/enums';
  * Crea el primer ADMINISTRADOR del sistema.
  * Solo se ejecuta si no existe ningún admin todavía.
  */
-const CORREO_ADMIN = 'admin@tuempresa.com';
+const CORREO_ADMIN = '  ';
 const PASSWORD_ADMIN = 'CambiarEstoYa123!';
 const NOMBRE_ADMIN = 'Administrador Inicial';
 

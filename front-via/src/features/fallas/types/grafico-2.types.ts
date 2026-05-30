@@ -1,19 +1,16 @@
+// frontend/src/features/fallas/types/grafico-2.types.ts
+
 /**
  * ============================================================
- * TIPOS DEL GRÁFICO 2 — Distribución por categoría
+ * G2 — Distribución por categoría (barras)
  * ============================================================
- * Espejo del backend en:
- *   backend/src/modules/fallas/dto/graficos/grafico-2/
+ * Eje Y = cantidad siempre.
  *
- * Filtros disponibles:
- *  - Temporales: fechaDesde, fechaHasta
- *  - Categóricos: tipoFalla, tipoVia, categoria (dimensión del gráfico)
- *  - Geográficos: tramoIds, curvaHorizontalIds, curvaVerticalIds
- *  - Caracterización (FASE 2.D, solo riel):
- *    tipoDefectos, elementosAfectados, zonasAfectadas, perfiles, estadosActuales
+ * Dos modos:
+ *  - CATEGORIA (default): eje X = opciones del enum. 1 serie "Total".
+ *  - ELEMENTO          : eje X = elementos. N series apiladas por enum.
  *
- * categoria: define POR QUÉ campo agrupar (eje X del bar chart).
- * Ver enum CategoriaG2 para los valores disponibles y sus etiquetas.
+ * Tiene avanzados como acotadores opcionales (vacío = no acota).
  * ============================================================
  */
 
@@ -25,47 +22,63 @@ import type {
   ZonaAfectadaRiel,
   PerfilFallaRiel,
   EstadoFalla,
+  AccionFalla,
+  UbicacionFalla,
 } from '@/lib/types/enums/fallas.enum';
+import type {
+  NivelAnalisis,
+  TipoViaFiltroFallas,
+  ModoG2,
+} from '@/lib/types/enums/fallas-graficos.enum';
 
 export interface Grafico2Filtros {
-  /** Fecha en formato YYYY-MM-DD. */
-  fechaDesde?: string;
-  /** Fecha en formato YYYY-MM-DD. */
-  fechaHasta?: string;
+  // Temporal
+  fechaDesde?: string; // YYYY-MM-DD
+  fechaHasta?: string; // YYYY-MM-DD
 
+  // Principales
+  tipoVia?: TipoViaFiltroFallas;
+  nivel?: NivelAnalisis;
   tipoFalla?: TipoFallaFiltro;
-  tipoVia?: string;
+  elementoIds?: number[];
 
-  /**
-   * Dimensión por la que agrupar las barras.
-   * Default backend: ACCION (soldadura).
-   */
+  // Categoría y modo
   categoria?: CategoriaG2;
+  modo?: ModoG2;
 
-  tramoIds?: number[];
-
-  // ----- FASE 1 — Filtros de curva (solo aplican a fallas_riel) -----
-  curvaHorizontalIds?: number[];
-  curvaVerticalIds?: number[];
-
-  // ----- FASE 2.D — Filtros por caracterización (solo aplican a fallas_riel) -----
+  // Avanzados RIEL
   tipoDefectos?: TipoDefectoRiel[];
   elementosAfectados?: ElementoAfectadoRiel[];
   zonasAfectadas?: ZonaAfectadaRiel[];
   perfiles?: PerfilFallaRiel[];
   estadosActuales?: EstadoFalla[];
+
+  // Avanzados SOLDADURA
+  acciones?: AccionFalla[];
+  ubicacionesFalla?: UbicacionFalla[];
 }
 
-export interface Grafico2Barra {
-  categoria: string;
-  total: number;
+export interface Grafico2Serie {
+  nombre: string;
+  codigo: string;
+  datos: number[];
+}
+
+export interface Grafico2Metadata {
+  totalFallas: number;
+  calculadoEn: Date;
+  nivel?: NivelAnalisis;
+  modo?: ModoG2;
+  mensaje?: string;
 }
 
 export interface Grafico2Response {
-  configAplicada: Grafico2Filtros;
-  barras: Grafico2Barra[];
-  metadata: {
-    totalFallas: number;
-    calculadoEn: Date;
-  };
+  /**
+   * Etiquetas del eje X.
+   *  - modo CATEGORIA: opciones del enum.
+   *  - modo ELEMENTO : nombres de los elementos seleccionados.
+   */
+  categorias: string[];
+  series: Grafico2Serie[];
+  metadata: Grafico2Metadata;
 }

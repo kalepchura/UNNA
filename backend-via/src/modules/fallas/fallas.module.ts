@@ -36,6 +36,9 @@ import { CurvasHorizontalesModule } from '../catalogos/curvas-horizontales/curva
 import { CurvasVerticalesModule } from '../catalogos/curvas-verticales/curvas-verticales.module';
 import { CambiaviasModule } from '../catalogos/cambiavias/cambiavias.module';
 import { VelocidadesModule } from '../catalogos/velocidades/velocidades.module';
+import {FallasRielImportacionController } from './controllers/fallas-riel-importacion.controller';
+import {FallasRielImportacionService} from './services/fallas-riel-importacion.service';
+
 
 @Module({
   imports: [
@@ -56,6 +59,7 @@ import { VelocidadesModule } from '../catalogos/velocidades/velocidades.module';
     FallasSoldaduraInoxController,
     FallasAnalyticsController,
     FallasRielAccionController, 
+    FallasRielImportacionController,
   ],
   providers: [
     // CRUD
@@ -65,6 +69,7 @@ import { VelocidadesModule } from '../catalogos/velocidades/velocidades.module';
     FallasSoldaduraInoxService,
     ImagenesFallaRepository,
     ImagenesFallaService,
+    FallasRielImportacionService,
 
     // Historial de acciones (FASE 2)
     FallasRielAccionRepository,

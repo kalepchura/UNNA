@@ -1,14 +1,10 @@
 /**
- * Capa Desgaste General — 4 carriles paralelos sin franja de fondo.
+ * Capa Desgaste General — 4 carriles paralelos con color fijo por vía+carril.
  *
- * Solo se renderizan los carriles que tengan al menos un punto.
- * Los puntos se reparten uniformemente dentro de cada tramo,
- * ordenados por progresiva.
- *
- * CORRECCIÓN:
- * - tramoDeProgresiva recibe solo p.progresiva (punto fijo, sin extensión).
- *   No se pasa progresivaFin porque los puntos de desgaste son mediciones
- *   puntuales, no elementos con extensión.
+ * Cada carril (PAR-IZQ, PAR-DER, IMPAR-IZQ, IMPAR-DER) tiene:
+ *  - Una línea guía con su color fijo (independiente del semáforo)
+ *  - Puntos de medición con color semáforo (verde/amarillo/rojo/gris)
+ *  - Leyenda integrada que muestra los 4 colores de carril
  */
 
 import {
@@ -17,7 +13,7 @@ import {
   HoverCardTrigger,
 } from '@/components/ui/hover-card';
 
-import { colorSemaforo } from '../utils/colores';
+import { colorSemaforo, colorViaRiel, LEYENDA_VIAS_DESGASTE } from '../utils/colores';
 import { TooltipPunto } from './tooltip-punto';
 import type {
   LineaDesgaste,
@@ -30,10 +26,7 @@ interface CapaDesgasteGeneralProps {
   utils: UtilsEsquema;
 }
 
-export function CapaDesgasteGeneral({
-  lineas,
-  utils,
-}: CapaDesgasteGeneralProps) {
+export function CapaDesgasteGeneral({ lineas, utils }: CapaDesgasteGeneralProps) {
   if (!lineas.length || lineas.every((l) => l.puntos.length === 0)) {
     return (
       <text
@@ -48,9 +41,7 @@ export function CapaDesgasteGeneral({
     );
   }
 
-  const lineasOrdenadas = ordenarLineas(lineas).filter(
-    (l) => l.puntos.length > 0,
-  );
+  const lineasOrdenadas = ordenarLineas(lineas).filter((l) => l.puntos.length > 0);
   const totalCarriles = lineasOrdenadas.length;
   const offsets = calcularOffsets(totalCarriles);
 
@@ -64,11 +55,11 @@ export function CapaDesgasteGeneral({
     riel: string;
     etiqueta: string;
   };
+
   const porTramo: Record<number, Record<number, Item[]>> = {};
 
   lineasOrdenadas.forEach((linea, carrilIdx) => {
     linea.puntos.forEach((p) => {
-      // Punto fijo: usar p.progresiva directamente, sin extensión.
       const t = utils.tramoDeProgresiva(p.progresiva);
       if (!porTramo[t]) porTramo[t] = {};
       if (!porTramo[t][carrilIdx]) porTramo[t][carrilIdx] = [];
@@ -90,21 +81,25 @@ export function CapaDesgasteGeneral({
 
   return (
     <g>
-      {/* Solo carriles guía finos — SIN franja de fondo */}
+      {/* Líneas guía coloreadas por vía+carril */}
       {Array.from({ length: numTramos }).map((_, i) =>
-        offsets.map((off, k) => (
-          <path
-            key={`carril-${i}-${k}`}
-            d={utils.getPathTramo(i, off)}
-            stroke="#cbd5e1"
-            strokeWidth="1"
-            fill="none"
-            opacity="0.5"
-          />
-        )),
+        lineasOrdenadas.map((linea, k) => {
+          const color = colorViaRiel(linea.via, linea.riel);
+          const off = offsets[k];
+          return (
+            <path
+              key={`carril-${i}-${k}`}
+              d={utils.getPathTramo(i, off)}
+              stroke={color}
+              strokeWidth="1.5"
+              fill="none"
+              opacity="0.45"
+            />
+          );
+        }),
       )}
 
-      {/* Puntos */}
+      {/* Puntos de medición (color semáforo) */}
       {Object.entries(porTramo).flatMap(([tStr, porCarril]) => {
         const t = +tStr;
         return Object.entries(porCarril).flatMap(([cStr, items]) => {
@@ -130,9 +125,7 @@ export function CapaDesgasteGeneral({
                     opacity={tiene ? 1 : 0.45}
                     style={{
                       cursor: 'pointer',
-                      filter: tiene
-                        ? `drop-shadow(0 0 3px ${s.glow})`
-                        : 'none',
+                      filter: tiene ? `drop-shadow(0 0 3px ${s.glow})` : 'none',
                     }}
                   />
                 </HoverCardTrigger>
@@ -164,23 +157,14 @@ export function CapaDesgasteGeneral({
   );
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function ordenarLineas(lineas: LineaDesgaste[]): LineaDesgaste[] {
-  const ordenVia = (via: string) => {
-    if (via === 'PAR') return 0;
-    if (via === 'IMPAR') return 1;
-    if (via === 'TERCERA') return 2;
-    if (via === 'CERO') return 3;
-    return 4;
-  };
-  const ordenRiel = (riel: string) =>
-    riel.toUpperCase().includes('IZ') ? 0 : 1;
-
+  const ordenVia  = (v: string) => ({ PAR: 0, IMPAR: 1, TERCERA: 2, CERO: 3 }[v] ?? 4);
+  const ordenRiel = (r: string) => r.toUpperCase().includes('IZ') ? 0 : 1;
   return [...lineas].sort((a, b) => {
     const dv = ordenVia(a.via) - ordenVia(b.via);
-    if (dv !== 0) return dv;
-    return ordenRiel(a.riel) - ordenRiel(b.riel);
+    return dv !== 0 ? dv : ordenRiel(a.riel) - ordenRiel(b.riel);
   });
 }
 
@@ -190,4 +174,24 @@ function calcularOffsets(total: number): number[] {
   const SEP = 8;
   const centro = (total - 1) / 2;
   return Array.from({ length: total }, (_, i) => (i - centro) * SEP);
+}
+
+// ─── Leyenda de vías (para usar en mapa-calor-page) ──────────────────────────
+
+export function LeyendaViasDesgaste() {
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
+      <span className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">
+        Carriles
+      </span>
+      {LEYENDA_VIAS_DESGASTE.map((lv) => (
+        <div key={`${lv.via}-${lv.riel}`} className="flex items-center gap-1.5">
+          <svg width="20" height="6" aria-hidden="true">
+            <line x1="0" y1="3" x2="20" y2="3" stroke={lv.color} strokeWidth="3" strokeLinecap="round" />
+          </svg>
+          <span className="text-muted-foreground">{lv.label}</span>
+        </div>
+      ))}
+    </div>
+  );
 }

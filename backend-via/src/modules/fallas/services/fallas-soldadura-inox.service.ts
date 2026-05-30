@@ -162,7 +162,6 @@ export class FallasSoldaduraInoxService {
       },
     });
 
-    this.invalidarCacheAnalitico();
 
     // 4. Recargar con JOINs para el response
     const conJoins = await this.fallasRepo.buscarPorId(creada.id);
@@ -213,7 +212,6 @@ export class FallasSoldaduraInoxService {
       detalle: { camposCambiados: Object.keys(dto) },
     });
 
-    this.invalidarCacheAnalitico();
 
     const actualizada = await this.fallasRepo.buscarPorId(id);
     return FallaSoldaduraInoxResponseDto.fromEntity(actualizada!);
@@ -248,7 +246,7 @@ export class FallasSoldaduraInoxService {
       detalle: { cambiaviaId: falla.cambiaviaId },
     });
 
-    this.invalidarCacheAnalitico();
+
   }
 
   // ----------------------------------------------------------
@@ -279,7 +277,6 @@ export class FallasSoldaduraInoxService {
       user,
     });
 
-    this.invalidarCacheAnalitico();
   }
 
   // ----------------------------------------------------------
@@ -290,21 +287,6 @@ export class FallasSoldaduraInoxService {
     return this.fallasRepo.contarEliminados();
   }
 
-  // ----------------------------------------------------------
-  // HELPERS PRIVADOS
-  // ----------------------------------------------------------
+  
 
-  /**
-   * Invalida toda la caché analítica cuando hay un cambio
-   * en datos (crear/actualizar/eliminar/restaurar).
-   *
-   * Las imágenes NO invocan este método porque no cambian
-   * los datos de la falla, solo sus adjuntos visuales.
-   */
-  private invalidarCacheAnalitico(): void {
-    this.kpisService.invalidarCache();
-    this.grafico1Service.invalidarCacheBase();
-    this.grafico2Service.invalidarCacheBase();
-    this.grafico3Service.invalidarCacheBase();
-  }
 }

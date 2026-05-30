@@ -1,71 +1,69 @@
+// frontend/src/features/fallas/types/grafico-1.types.ts
+
 /**
  * ============================================================
- * TIPOS DEL GRÁFICO 1 — Evolución temporal
+ * G1 — Evolución temporal (líneas)
  * ============================================================
  * Espejo del backend en:
  *   backend/src/modules/fallas/dto/graficos/grafico-1/
  *
- * Filtros disponibles:
- *  - Temporales: granularidad, anio, anioInicio, anioFin
- *  - Categóricos: tipoFalla, tipoVia
- *  - Geográficos: tramoIds, curvaHorizontalIds, curvaVerticalIds (multi-select)
- *  - Caracterización (FASE 2.D, solo riel):
- *    tipoDefectos, elementosAfectados, zonasAfectadas, perfiles, estadosActuales
+ * Filtros:
+ *  - Temporales: granularidad + (anio) o (anioInicio, anioFin)
+ *  - tipoVia (filtro de vía, 5 opciones)
+ *  - nivel (Tramo / Curva H / Curva V / Cambiavía)
+ *  - tipoFalla (opcional, ignorado si nivel=CAMBIAVIA)
+ *  - elementoIds: ids de los elementos del nivel elegido (≥1)
+ *
+ * NO tiene avanzados (esos solo G2 los usa).
  * ============================================================
  */
 
 import type {
   GranularidadTemporal,
   TipoFallaFiltro,
-  TipoDefectoRiel,
-  ElementoAfectadoRiel,
-  ZonaAfectadaRiel,
-  PerfilFallaRiel,
-  EstadoFalla,
 } from '@/lib/types/enums/fallas.enum';
+import type {
+  NivelAnalisis,
+  TipoViaFiltroFallas,
+} from '@/lib/types/enums/fallas-graficos.enum';
 
-/**
- * Filtros del Gráfico 1.
- * Todos los campos son opcionales. Si no se envía nada, el
- * backend aplica defaults (granularidad mensual, año actual, etc.).
- *
- * tipoVia se mantiene como string libre porque el backend usa
- * TipoViaFiltro (PAR|IMPAR|AMBAS) que es un enum distinto al
- * TipoVia (PAR|IMPAR|TERCERA|CERO). Para no acoplar, usamos string.
- */
 export interface Grafico1Filtros {
   granularidad?: GranularidadTemporal;
   anio?: number;
   anioInicio?: number;
   anioFin?: number;
+
+  tipoVia?: TipoViaFiltroFallas;
+  nivel?: NivelAnalisis;
   tipoFalla?: TipoFallaFiltro;
-  tipoVia?: string;
-  tramoIds?: number[];
 
-  // ----- FASE 1 — Filtros de curva (solo aplican a fallas_riel) -----
-  curvaHorizontalIds?: number[];
-  curvaVerticalIds?: number[];
-
-  // ----- FASE 2.D — Filtros por caracterización (solo aplican a fallas_riel) -----
-  tipoDefectos?: TipoDefectoRiel[];
-  elementosAfectados?: ElementoAfectadoRiel[];
-  zonasAfectadas?: ZonaAfectadaRiel[];
-  perfiles?: PerfilFallaRiel[];
-  estadosActuales?: EstadoFalla[];
+  /**
+   * IDs del nivel elegido. Vacío = no se grafica nada.
+   *  - nivel=TRAMO      → ids de tramos
+   *  - nivel=CURVA_H    → ids de curvas horizontales
+   *  - nivel=CURVA_V    → ids de curvas verticales
+   *  - nivel=CAMBIAVIA  → ids de cambiavías
+   */
+  elementoIds?: number[];
 }
 
 export interface Grafico1Serie {
   nombre: string;
   codigo: string;
+  elementoId: number;
   datos: number[];
 }
 
+export interface Grafico1Metadata {
+  totalFallas: number;
+  calculadoEn: Date;
+  nivel?: NivelAnalisis;
+  /** Si el backend rechazó la config, viene un mensaje aquí. */
+  mensaje?: string;
+}
+
 export interface Grafico1Response {
-  configAplicada: Grafico1Filtros;
   categorias: string[];
   series: Grafico1Serie[];
-  metadata: {
-    totalFallas: number;
-    calculadoEn: Date;
-  };
+  metadata: Grafico1Metadata;
 }

@@ -1,3 +1,4 @@
+import type { ImportacionFallasRielResultadoDto } from '@/features/fallas/types/importacion-fallas-riel.types';
 /**
  * ============================================================
  * FALLAS API
@@ -135,6 +136,17 @@ const riel = {
     const { data } = await http.post<PaginatedResponse<FallaRiel>>(
       '/fallas/riel/eliminados',
       filtros,
+    );
+    return data;
+  },
+
+  importar: async (archivo: File): Promise<ImportacionFallasRielResultadoDto> => {
+    const formData = new FormData();
+    formData.append('archivo', archivo);
+    const { data } = await http.post<ImportacionFallasRielResultadoDto>(
+      '/fallas/riel/importar',
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
     );
     return data;
   },
@@ -327,6 +339,7 @@ const soldadura = {
     );
     return data;
   },
+
 
   // ----- Imágenes (múltiples por falla) -----
 

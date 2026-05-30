@@ -23,6 +23,8 @@ const CeldaInput = memo(
         ref={inputRef}
         type="number"
         step="0.01"
+        min="-50"
+        max="50"
         defaultValue={valor !== null ? String(valor) : ''}
         onBlur={() => {
           const raw = inputRef.current?.value ?? '';
@@ -78,7 +80,7 @@ export function GrillaDesgaste({
           <tr>
             <th className="px-2 py-1 text-left">Elemento</th>
             <th className="px-2 py-1 text-left">Prog.</th>
-            <th className="px-2 py-1 text-left">Vía</th>
+            <th className="px-2 py-1 text-left">Vía / Riel</th>
             {anios.map((anio) => (
               <th
                 key={anio}
@@ -110,7 +112,12 @@ export function GrillaDesgaste({
             <tr key={fila.elementoId} className="hover:bg-gray-50">
               <td className="px-2 py-1 font-medium">{fila.codigoElemento}</td>
               <td className="px-2 py-1">{fila.progresiva}</td>
-              <td className="px-2 py-1">{fila.via}</td>
+              <td className="px-2 py-1">
+                <div className="leading-tight">
+                  <div>{fila.via}</div>
+                  <div className="text-xs text-muted-foreground">{fila.riel}</div>
+                </div>
+              </td>
               {anios.map((anio) =>
                 [1, 2, 3, 4].map((trimestre) => (
                   <td
@@ -152,4 +159,4 @@ export function GrillaDesgaste({
       </table>
     </div>
   );
-} 
+}

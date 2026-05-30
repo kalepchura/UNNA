@@ -117,13 +117,29 @@ export class FallasRielService {
     soloEliminados: boolean,
   ) {
     const filtrosResueltos: FiltrosResueltos = {
+      // Geográficos
       tramoIds: filtros.tramoIds,
       curvaHorizontalIds: filtros.curvaHorizontalIds,
       curvaVerticalIds: filtros.curvaVerticalIds,
+
+      // Atributos simples
       via: filtros.via,
       carril: filtros.carril,
+
+      // Temporales
       fechaDesde: filtros.fechaDesde,
       fechaHasta: filtros.fechaHasta,
+
+      // ----- FASE 3: filtros por enum -----
+      estadosActuales: filtros.estadosActuales,
+      accionesActuales: filtros.accionesActuales,
+      tipoDefectos: filtros.tipoDefectos,
+      elementosAfectados: filtros.elementosAfectados,
+      zonasAfectadas: filtros.zonasAfectadas,
+      perfiles: filtros.perfiles,
+      altasBajas: filtros.altasBajas,
+
+      // Soft delete + paginación
       soloEliminados,
       page: filtros.page,
       limit: filtros.limit,
@@ -208,8 +224,6 @@ export class FallasRielService {
       },
     });
 
-    this.invalidarCacheAnalitico();
-
     const conJoins = await this.fallasRepo.buscarPorId(creada.id);
     return FallaRielResponseDto.fromEntity(conJoins!);
   }
@@ -291,8 +305,6 @@ export class FallasRielService {
       },
     });
 
-    this.invalidarCacheAnalitico();
-
     const actualizada = await this.fallasRepo.buscarPorId(id);
     return FallaRielResponseDto.fromEntity(actualizada!);
   }
@@ -332,8 +344,6 @@ export class FallasRielService {
       user,
       detalle: { progresiva: falla.progresiva, via: falla.via },
     });
-
-    this.invalidarCacheAnalitico();
   }
 
   // ----------------------------------------------------------
@@ -375,8 +385,6 @@ export class FallasRielService {
       operacion: OperacionAuditoria.RESTORE,
       user,
     });
-
-    this.invalidarCacheAnalitico();
   }
 
   // ----------------------------------------------------------
@@ -536,12 +544,5 @@ export class FallasRielService {
     return tipo === TipoArchivoFalla.INTERNO
       ? STORAGE_BUCKETS.FALLAS_RIEL_INTERNO
       : STORAGE_BUCKETS.FALLAS_RIEL_EXTERNO;
-  }
-
-  private invalidarCacheAnalitico(): void {
-    this.kpisService.invalidarCache();
-    this.grafico1Service.invalidarCacheBase();
-    this.grafico2Service.invalidarCacheBase();
-    this.grafico3Service.invalidarCacheBase();
   }
 }

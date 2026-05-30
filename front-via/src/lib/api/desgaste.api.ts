@@ -3,9 +3,11 @@ import type { PaginatedResponse } from '@/lib/types/common';
 
 // Analytics
 import type { KpisDesgasteResponse } from '@/features/desgaste/types/kpis-desgaste.types';
-import type { Grafico1DesgasteFiltros, Grafico1DesgasteResponse } from '@/features/desgaste/types/grafico-1.types';
 import type { Grafico2DesgasteFiltros, Grafico2DesgasteResponse } from '@/features/desgaste/types/grafico-2.types';
-import type { Grafico3DesgasteFiltros, Grafico3DesgasteResponse } from '@/features/desgaste/types/grafico-3.types';
+import type {
+  Grafico3DesgasteRequest,
+  Grafico3DesgasteResponse,
+} from '@/features/desgaste/types/grafico-3.types';
 
 // Escenarios
 import type {
@@ -30,17 +32,26 @@ import type {
   GuardarCambiosResponse,
 } from '@/features/desgaste/types/mediciones.types';
 
-// ─── WIZARD ─────────────────────────────────────────────────
+// ─── WIZARD ─────────────────────────────────────────────────────────────────
+
 const wizard = {
-  obtenerOpciones: async (request: any) => {
+  obtenerOpciones: async (request: {
+    paso: number;
+    tipoAgrupacion?: string;
+    /** Singular — retrocompatibilidad G1 */
+    agrupacionId?: number;
+    /** Plural — G3 con multi-selección */
+    agrupacionIds?: number[];
+    via?: string;
+  }) => {
     const { data } = await http.post('/desgaste/wizard-filtros', request);
     return data;
   },
 };
 
-// ─── ESCENARIOS ─────────────────────────────────────────────
+// ─── ESCENARIOS ─────────────────────────────────────────────────────────────
+
 const escenarios = {
-  /** POST /desgaste/escenarios/buscar */
   buscar: async (filtros: FiltrosEscenarios): Promise<PaginatedResponse<EscenarioResponse>> => {
     const { data } = await http.post<PaginatedResponse<EscenarioResponse>>(
       '/desgaste/escenarios/buscar',
@@ -49,35 +60,29 @@ const escenarios = {
     return data;
   },
 
-  /** GET /desgaste/escenarios/:id */
   obtener: async (id: number): Promise<EscenarioResponse> => {
     const { data } = await http.get<EscenarioResponse>(`/desgaste/escenarios/${id}`);
     return data;
   },
 
-  /** POST /desgaste/escenarios */
   crear: async (dto: CrearEscenarioDto): Promise<EscenarioResponse> => {
     const { data } = await http.post<EscenarioResponse>('/desgaste/escenarios', dto);
     return data;
   },
 
-  /** PATCH /desgaste/escenarios/:id */
   actualizar: async (id: number, dto: ActualizarEscenarioDto): Promise<EscenarioResponse> => {
     const { data } = await http.patch<EscenarioResponse>(`/desgaste/escenarios/${id}`, dto);
     return data;
   },
 
-  /** DELETE /desgaste/escenarios/:id */
   eliminar: async (id: number): Promise<void> => {
     await http.delete(`/desgaste/escenarios/${id}`);
   },
 
-  /** POST /desgaste/escenarios/:id/restaurar */
   restaurar: async (id: number): Promise<void> => {
     await http.post(`/desgaste/escenarios/${id}/restaurar`);
   },
 
-  /** POST /desgaste/escenarios/eliminados */
   listarEliminados: async (filtros: FiltrosEscenarios): Promise<PaginatedResponse<EscenarioResponse>> => {
     const { data } = await http.post<PaginatedResponse<EscenarioResponse>>(
       '/desgaste/escenarios/eliminados',
@@ -86,14 +91,15 @@ const escenarios = {
     return data;
   },
 
-  /** GET /desgaste/escenarios/:id/valores */
   listarValores: async (id: number): Promise<ValoresMtbResponse> => {
     const { data } = await http.get<ValoresMtbResponse>(`/desgaste/escenarios/${id}/valores`);
     return data;
   },
 
-  /** POST /desgaste/escenarios/:id/valores/guardar */
-  guardarValores: async (id: number, dto: GuardarValoresMtbRequest): Promise<GuardarValoresMtbResponse> => {
+  guardarValores: async (
+    id: number,
+    dto: GuardarValoresMtbRequest,
+  ): Promise<GuardarValoresMtbResponse> => {
     const { data } = await http.post<GuardarValoresMtbResponse>(
       `/desgaste/escenarios/${id}/valores/guardar`,
       dto,
@@ -102,37 +108,47 @@ const escenarios = {
   },
 };
 
-// ─── MEDICIONES ─────────────────────────────────────────────
+// ─── MEDICIONES ─────────────────────────────────────────────────────────────
+
 const mediciones = {
-  /** POST /desgaste/mediciones/grilla */
   cargarGrilla: async (filtros: CargarGrillaFiltros): Promise<GrillaResponse> => {
     const { data } = await http.post<GrillaResponse>('/desgaste/mediciones/grilla', filtros);
     return data;
   },
 
-  /** POST /desgaste/mediciones/guardar */
   guardarCambios: async (dto: GuardarCambiosRequest): Promise<GuardarCambiosResponse> => {
     const { data } = await http.post<GuardarCambiosResponse>('/desgaste/mediciones/guardar', dto);
     return data;
   },
 };
 
-// ─── ANALYTICS ──────────────────────────────────────────────
+// ─── ANALYTICS ──────────────────────────────────────────────────────────────
+
 const analytics = {
   kpis: async (): Promise<KpisDesgasteResponse> => {
     const { data } = await http.get<KpisDesgasteResponse>('/desgaste/kpis');
     return data;
   },
-  grafico1: async (config: Grafico1DesgasteFiltros): Promise<Grafico1DesgasteResponse> => {
-    const { data } = await http.post<Grafico1DesgasteResponse>('/desgaste/graficos/1', { config });
-    return data;
-  },
+
   grafico2: async (config: Grafico2DesgasteFiltros): Promise<Grafico2DesgasteResponse> => {
     const { data } = await http.post<Grafico2DesgasteResponse>('/desgaste/graficos/2', { config });
     return data;
   },
-  grafico3: async (config: Grafico3DesgasteFiltros): Promise<Grafico3DesgasteResponse> => {
-    const { data } = await http.post<Grafico3DesgasteResponse>('/desgaste/graficos/3', { config });
+
+  /**
+   * Gráfico 3 — Proyección de Desgaste por Escenario.
+   *
+   * Absorbe el anterior G1 (escenario REAL) y permite comparar
+   * múltiples configuraciones y escenarios en una sola vista.
+   *
+   * Para replicar el comportamiento del antiguo G1, pasar una
+   * configuración con escenarioIds: [ID_ESCENARIO_REAL].
+   */
+  grafico3: async (request: Grafico3DesgasteRequest): Promise<Grafico3DesgasteResponse> => {
+    const { data } = await http.post<Grafico3DesgasteResponse>(
+      '/desgaste/graficos/3',
+      request,
+    );
     return data;
   },
 };

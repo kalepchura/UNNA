@@ -1,24 +1,4 @@
 // frontend/src/components/shared/config-sheet.tsx
-//
-// Wrapper para ABRIR los filtros/wizards de gráficos dentro de un Sheet lateral
-// (en lugar de tenerlos inline ocupando media pantalla).
-//
-// Patrón canónico para CUALQUIER configuración de gráfico:
-//
-//   <ConfigSheet
-//     title="Configurar gráfico"
-//     description="Ajusta los parámetros del análisis."
-//     summary={<ChipSummary items={[…]} />}   // opcional
-//     size="2xl"
-//   >
-//     {(close) => (
-//       <FiltrosGrafico1
-//         config={…}
-//         onChange={…}
-//         onAplicar={() => { aplicar(); close(); }}
-//       />
-//     )}
-//   </ConfigSheet>
 
 import { useState, type ReactNode } from 'react';
 import { Settings2 } from 'lucide-react';
@@ -37,23 +17,18 @@ import { cn } from '@/lib/utils';
 type SheetSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full';
 
 interface ConfigSheetProps {
-  /** Título del Sheet. */
   title: string;
-  /** Descripción opcional. */
   description?: string;
-  /** Etiqueta del botón disparador. Default: 'Configurar'. */
   triggerLabel?: string;
-  /** Variante del trigger. Default: 'bar' (chip horizontal). */
   triggerVariant?: 'bar' | 'button' | 'icon';
-  /** Resumen visible junto al trigger (chips de filtros activos, etc.). */
   summary?: ReactNode;
-  /** Ancho del Sheet. Default: 'xl'. */
   size?: SheetSize;
-  /** Render-prop children. Recibe `close` para cerrar el sheet desde dentro. */
   children: (close: () => void) => ReactNode;
-  /** Si hay filtros activos, muestra contador visible. */
   activeCount?: number;
   className?: string;
+  /** Control externo del estado open. Si no se pasa, usa estado interno. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function ConfigSheet({
@@ -66,14 +41,29 @@ export function ConfigSheet({
   children,
   activeCount,
   className,
+  open: openExterno,
+  onOpenChange: onOpenChangeExterno,
 }: ConfigSheetProps) {
-  const [open, setOpen] = useState(false);
+  const [openInterno, setOpenInterno] = useState(false);
+
+  // Si se pasan props externas, usar esas; si no, usar estado interno
+  const esControlado = openExterno !== undefined;
+  const open = esControlado ? openExterno : openInterno;
+
+  const setOpen = (value: boolean) => {
+    if (esControlado) {
+      onOpenChangeExterno?.(value);
+    } else {
+      setOpenInterno(value);
+    }
+  };
+
   const close = () => setOpen(false);
 
   return (
     <>
-      {/* TRIGGER — variantes */}
-      {triggerVariant === 'bar' && (
+      {/* TRIGGER — solo se renderiza si NO es controlado externamente */}
+      {!esControlado && triggerVariant === 'bar' && (
         <button
           type="button"
           onClick={() => setOpen(true)}
@@ -101,14 +91,10 @@ export function ConfigSheet({
               )}
             </div>
             {summary ? (
-              <div className="mt-1 text-xs text-muted-foreground">
-                {summary}
-              </div>
+              <div className="mt-1 text-xs text-muted-foreground">{summary}</div>
             ) : (
               description && (
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {description}
-                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
               )
             )}
           </div>
@@ -118,7 +104,7 @@ export function ConfigSheet({
         </button>
       )}
 
-      {triggerVariant === 'button' && (
+      {!esControlado && triggerVariant === 'button' && (
         <Button
           variant="outline"
           size="sm"
@@ -135,7 +121,7 @@ export function ConfigSheet({
         </Button>
       )}
 
-      {triggerVariant === 'icon' && (
+      {!esControlado && triggerVariant === 'icon' && (
         <Button
           variant="ghost"
           size="icon-sm"
@@ -161,7 +147,7 @@ export function ConfigSheet({
   );
 }
 
-// ── ConfigSummaryChips — helper para mostrar resumen en el bar trigger ──────
+// ── ConfigSummaryChips ───────────────────────────────────────────────────────
 
 export interface ConfigSummaryItem {
   label: string;
@@ -173,15 +159,13 @@ interface ConfigSummaryChipsProps {
   maxVisible?: number;
 }
 
-/**
- * Muestra una lista compacta horizontal: "Granularidad: Mensual · Año: 2024 …"
- * Se inserta en el `summary` prop de ConfigSheet.
- */
 export function ConfigSummaryChips({
   items,
   maxVisible = 4,
 }: ConfigSummaryChipsProps) {
-  const filled = items.filter((i) => i.value !== undefined && i.value !== null && i.value !== '');
+  const filled = items.filter(
+    (i) => i.value !== undefined && i.value !== null && i.value !== '',
+  );
   const visible = filled.slice(0, maxVisible);
   const extra = filled.length - visible.length;
 
@@ -203,4 +187,4 @@ export function ConfigSummaryChips({
       )}
     </span>
   );
-}
+}   

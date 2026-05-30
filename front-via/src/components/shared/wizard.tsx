@@ -1,31 +1,3 @@
-// frontend/src/components/shared/wizard.tsx
-//
-// Componentes de alto nivel para construir wizards con mejor visual jerarquía
-// que un campo suelto: cada paso tiene un "hero" con icono + título + descripción,
-// y un resumen acumulativo abajo con las selecciones hechas.
-//
-// Uso:
-//
-//   <WizardStep
-//     stepNumber={3}
-//     totalSteps={5}
-//     icon={Route}
-//     title="Vía"
-//     description="Filtra por tipo de vía (par, impar o ambas)."
-//   >
-//     <FilterField label="Vía">
-//       <Select … />
-//     </FilterField>
-//   </WizardStep>
-//
-//   <WizardSummary
-//     items={[
-//       { label: 'Agrupación', value: 'Tramo', tone: 'completed' },
-//       { label: 'Selección', value: 'VES-PIN', tone: 'completed' },
-//       { label: 'Vía', value: undefined, tone: 'current' },
-//       { label: 'Elementos', value: undefined, tone: 'pending' },
-//     ]}
-//   />
 
 import type { LucideIcon } from 'lucide-react';
 import { Check, Circle } from 'lucide-react';

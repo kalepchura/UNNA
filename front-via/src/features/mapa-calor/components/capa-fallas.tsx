@@ -1,15 +1,18 @@
 /**
  * Capa Fallas del Mapa de Calor — sobre el esqueleto SVG.
  *
- *  - TRAMO            → línea coloreada del tramo entero
- *  - CAMBIAVIA        → 1 carril por vía con datos
- *  - CURVA_HORIZONTAL → 2 carriles (PAR/IMPAR)
- *  - CURVA_VERTICAL   → 2 carriles (PAR/IMPAR)
+ *  - TRAMO            → línea coloreada del tramo entero (sin carriles guía)
+ *  - CAMBIAVIA        → 1 carril por vía (PAR, IMPAR, TERCERA, CERO)
+ *  - CURVA_HORIZONTAL → 2 carriles (PAR, IMPAR)
+ *  - CURVA_VERTICAL   → 2 carriles (PAR, IMPAR)
  *
- * CORRECCIONES DEFINITIVAS:
+ * Las líneas guía en modo CAMBIAVIA/CURVA usan colorVia(via) para
+ * identificar visualmente cada vía, igual que desgaste usa colorViaRiel.
+ *
+ * REGLAS de posicionamiento:
  * - Todos los call sites de tramoDeProgresiva usan SOLO progresivaInicio.
- *   Pasar progresivaFin (punto medio) causaba que curvas/cambiavías
- *   apareciesen en el tramo siguiente al correcto.
+ *   Pasar progresivaFin causaba que curvas/cambiavías apareciesen en el
+ *   tramo siguiente al correcto.
  * - Para el cálculo de "cruza N tramos" del tooltip, tFin sí usa
  *   progresivaFin porque necesitamos saber dónde termina el elemento.
  */
@@ -20,7 +23,7 @@ import {
   HoverCardTrigger,
 } from '@/components/ui/hover-card';
 
-import { colorSemaforo } from '../utils/colores';
+import { colorSemaforo, colorVia, COLOR_VIA } from '../utils/colores';
 import { TooltipTramo } from './tooltip-tramo';
 import { TooltipPunto } from './tooltip-punto';
 import type {
@@ -31,19 +34,15 @@ import type {
 import type { UtilsEsquema } from './esquema-base';
 
 const ORDEN_VIAS_CAMBIAVIA = ['PAR', 'IMPAR', 'TERCERA', 'CERO'];
-const ORDEN_VIAS_CURVA = ['PAR', 'IMPAR'];
+const ORDEN_VIAS_CURVA     = ['PAR', 'IMPAR'];
 
 interface CapaFallasProps {
-  lineas: LineaFallas[];
-  segmentacion: SegmentacionFallas;
-  utils: UtilsEsquema;
+  lineas:        LineaFallas[];
+  segmentacion:  SegmentacionFallas;
+  utils:         UtilsEsquema;
 }
 
-export function CapaFallas({
-  lineas,
-  segmentacion,
-  utils,
-}: CapaFallasProps) {
+export function CapaFallas({ lineas, segmentacion, utils }: CapaFallasProps) {
   if (!lineas.length || lineas.every((l) => l.elementos.length === 0)) {
     return (
       <text
@@ -81,32 +80,28 @@ export function CapaFallas({
   );
 }
 
-// ─── Modo TRAMO ─────────────────────────────────────────────────────
+// ─── Modo TRAMO ─────────────────────────────────────────────────────────────
 
 function FallasPorTramo({
   elementos,
   utils,
 }: {
   elementos: ElementoColoreadoFallas[];
-  utils: UtilsEsquema;
+  utils:     UtilsEsquema;
 }) {
   return (
     <g>
       {elementos.map((e) => {
-        // Usar solo progresivaInicio — el tramo de temperatura/falla completo
+        // Usar solo progresivaInicio — el tramo de falla completo
         // siempre empieza en la progresiva de la estación inicial del tramo.
         const i = utils.tramoDeProgresiva(e.progresivaInicio);
         const d = utils.getPathTramo(i, 0);
         if (!d) return null;
-        const s = colorSemaforo(e.color);
+        const s     = colorSemaforo(e.color);
         const tiene = e.cantidadFallas > 0;
 
         return (
-          <HoverCard
-            key={`tr-${e.codigo}`}
-            openDelay={150}
-            closeDelay={100}
-          >
+          <HoverCard key={`tr-${e.codigo}`} openDelay={150} closeDelay={100}>
             <HoverCardTrigger asChild>
               <g style={{ cursor: 'pointer' }}>
                 <path
@@ -116,21 +111,12 @@ function FallasPorTramo({
                   strokeLinecap="butt"
                   fill="none"
                   opacity={tiene ? 0.9 : 0.5}
-                  style={{
-                    filter: tiene
-                      ? `drop-shadow(0 0 4px ${s.glow})`
-                      : 'none',
-                  }}
+                  style={{ filter: tiene ? `drop-shadow(0 0 4px ${s.glow})` : 'none' }}
                 />
-                <path
-                  d={d}
-                  stroke="transparent"
-                  strokeWidth="20"
-                  fill="none"
-                />
+                {/* Área de hit transparente más ancha para mejor UX */}
+                <path d={d} stroke="transparent" strokeWidth="20" fill="none" />
               </g>
             </HoverCardTrigger>
-
             <HoverCardContent side="right" className="w-auto p-2">
               <TooltipTramo
                 codigo={e.codigo}
@@ -149,27 +135,27 @@ function FallasPorTramo({
   );
 }
 
-// ─── Modo CAMBIAVIA / CURVA_* ───────────────────────────────────────
+// ─── Modo CAMBIAVIA / CURVA_* ────────────────────────────────────────────────
 
 function FallasPorVia({
   lineas,
   segmentacion,
   utils,
 }: {
-  lineas: LineaFallas[];
+  lineas:       LineaFallas[];
   segmentacion: SegmentacionFallas;
-  utils: UtilsEsquema;
+  utils:        UtilsEsquema;
 }) {
   const totalCarriles = lineas.length;
-  const offsets = calcularOffsets(totalCarriles);
+  const offsets       = calcularOffsets(totalCarriles);
 
-  const N = utils.estaciones.length;
+  const N        = utils.estaciones.length;
   const numTramos = Math.max(0, N - 1);
 
   type ItemEnTramo = {
-    el: ElementoColoreadoFallas;
-    viaIdx: number;
-    viaNombre: string;
+    el:         ElementoColoreadoFallas;
+    viaIdx:     number;
+    viaNombre:  string;
   };
   const porTramo: Record<number, Record<number, ItemEnTramo[]>> = {};
 
@@ -178,8 +164,8 @@ function FallasPorVia({
       // Usar solo progresivaInicio — las curvas/cambiavías deben aparecer
       // en el tramo donde comienzan, no en el punto medio inicio+fin.
       const t = utils.tramoDeProgresiva(el.progresivaInicio);
-      if (!porTramo[t]) porTramo[t] = {};
-      if (!porTramo[t][viaIdx]) porTramo[t][viaIdx] = [];
+      if (!porTramo[t])          porTramo[t]        = {};
+      if (!porTramo[t][viaIdx])  porTramo[t][viaIdx] = [];
       porTramo[t][viaIdx].push({ el, viaIdx, viaNombre: linea.via });
     });
   });
@@ -199,32 +185,36 @@ function FallasPorVia({
 
   return (
     <g>
-      {/* Solo carriles guía finos — SIN franja de fondo */}
+      {/* Líneas guía coloreadas por vía */}
       {Array.from({ length: numTramos }).map((_, i) =>
-        offsets.map((off, k) => (
-          <path
-            key={`carril-${i}-${k}`}
-            d={utils.getPathTramo(i, off)}
-            stroke="#cbd5e1"
-            strokeWidth="1"
-            fill="none"
-            opacity="0.5"
-          />
-        )),
+        lineas.map((linea, k) => {
+          const color = colorVia(linea.via);
+          const off   = offsets[k];
+          return (
+            <path
+              key={`carril-${i}-${k}`}
+              d={utils.getPathTramo(i, off)}
+              stroke={color}
+              strokeWidth="1.5"
+              fill="none"
+              opacity="0.45"
+            />
+          );
+        }),
       )}
 
-      {/* Elementos */}
+      {/* Elementos (puntos con color semáforo) */}
       {Object.entries(porTramo).flatMap(([tStr, porVia]) => {
         const t = +tStr;
         return Object.entries(porVia).flatMap(([viaIdxStr, items]) => {
           const viaIdx = +viaIdxStr;
           const offset = offsets[viaIdx];
           return items.map((item, j) => {
-            const frac = (j + 1) / (items.length + 1);
-            const pos = utils.posEnTramo(t, frac, offset);
-            const s = colorSemaforo(item.el.color);
+            const frac  = (j + 1) / (items.length + 1);
+            const pos   = utils.posEnTramo(t, frac, offset);
+            const s     = colorSemaforo(item.el.color);
             const tiene = item.el.cantidadFallas > 0;
-            const id = `fl-${item.viaNombre}-${item.el.codigo}`;
+            const id    = `fl-${item.viaNombre}-${item.el.codigo}`;
 
             // tIni: tramo donde empieza el elemento (por progresivaInicio)
             // tFin: tramo donde termina (por progresivaFin) — solo para el tooltip
@@ -245,9 +235,7 @@ function FallasPorVia({
                     opacity={tiene ? 0.95 : 0.5}
                     style={{
                       cursor: 'pointer',
-                      filter: tiene
-                        ? `drop-shadow(0 0 4px ${s.glow})`
-                        : 'none',
+                      filter: tiene ? `drop-shadow(0 0 4px ${s.glow})` : 'none',
                     }}
                   />
                 </HoverCardTrigger>
@@ -281,12 +269,53 @@ function FallasPorVia({
   );
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────
+// ─── Leyenda de vías (para usar en mapa-calor-page) ─────────────────────────
+
+/**
+ * Muestra los colores de vía para los modos CAMBIAVIA y CURVA.
+ * Se exporta para que mapa-calor-page la añada debajo de la leyenda
+ * de semáforo cuando la segmentación no es TRAMO.
+ */
+export function LeyendaViasFallas({
+  segmentacion,
+}: {
+  segmentacion: SegmentacionFallas;
+}) {
+  if (segmentacion === 'TRAMO') return null;
+
+  const vias =
+    segmentacion === 'CAMBIAVIA'
+      ? ['PAR', 'IMPAR', 'TERCERA', 'CERO']
+      : ['PAR', 'IMPAR']; // CURVA_HORIZONTAL y CURVA_VERTICAL
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
+      <span className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">
+        Vías
+      </span>
+      {vias.map((via) => (
+        <div key={via} className="flex items-center gap-1.5">
+          <svg width="20" height="6" aria-hidden="true">
+            <line
+              x1="0" y1="3" x2="20" y2="3"
+              stroke={COLOR_VIA[via] ?? '#475569'}
+              strokeWidth="3"
+              strokeLinecap="round"
+            />
+          </svg>
+          <span className="text-muted-foreground">Vía {via}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function calcularOffsets(total: number): number[] {
   if (total <= 0) return [];
   if (total === 1) return [0];
-  const SEP = 8;
+  const SEP    = 8;
   const centro = (total - 1) / 2;
   return Array.from({ length: total }, (_, i) => (i - centro) * SEP);
 }

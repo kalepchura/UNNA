@@ -1,55 +1,69 @@
-import { IsOptional, IsEnum, IsDateString, IsArray, IsInt } from 'class-validator';
+// backend/src/modules/fallas/dto/graficos/grafico-2/grafico-2-config.dto.ts
+
 import {
-  TipoFallaFiltro,
-  TipoViaFiltro,
-  CategoriaG2,
-  TipoDefectoRiel,
-  ElementoAfectadoRiel,
-  ZonaAfectadaRiel,
-  PerfilFallaRiel,
-  EstadoFalla,
+  IsEnum, IsOptional, IsDateString, IsArray, IsInt, ArrayNotEmpty,
+} from 'class-validator';
+import {
+  TipoFallaFiltro, CategoriaG2,
+  TipoDefectoRiel, ElementoAfectadoRiel, ZonaAfectadaRiel, PerfilFallaRiel,
+  EstadoFalla, AccionFalla, UbicacionFalla,
 } from '../../../../../common/enums';
+import {
+  NivelAnalisis, TipoViaFiltroFallas, ModoG2,
+} from '../../../enums/fallas-graficos.enums';
 
+/**
+ * ============================================================
+ * G2 — Distribución por categoría (barras)
+ * ============================================================
+ * Eje Y siempre = cantidad de fallas.
+ *
+ * Dos modos conmutables (campo `modo`):
+ *  - CATEGORIA: eje X = opciones del enum. Una barra por opción.
+ *  - ELEMENTO : eje X = elementos del nivel. Barras apiladas por opción del enum.
+ *
+ * Tiene filtros AVANZADOS como acotadores opcionales.
+ * Vacío en avanzados = no acota (todas las fallas con cualquier valor).
+ * SIN_DEFINIR es un valor más del enum (no se filtra).
+ * ============================================================
+ */
 export class Grafico2ConfigDto {
-  @IsOptional()
+  // ── Temporal ───────────────────────────────────────────
   @IsDateString()
-  fechaDesde?: string;
+  fechaDesde!: string;
 
-  @IsOptional()
   @IsDateString()
-  fechaHasta?: string;
+  fechaHasta!: string;
+
+  // ── Filtros principales ────────────────────────────────
+  @IsEnum(TipoViaFiltroFallas)
+  tipoVia!: TipoViaFiltroFallas;
+
+  @IsEnum(NivelAnalisis)
+  nivel!: NivelAnalisis;
 
   @IsOptional()
   @IsEnum(TipoFallaFiltro)
   tipoFalla?: TipoFallaFiltro;
 
-  @IsOptional()
-  @IsEnum(TipoViaFiltro)
-  tipoVia?: TipoViaFiltro;
+  @IsArray() @ArrayNotEmpty()
+  @IsInt({ each: true })
+  elementoIds!: number[];
 
-  @IsOptional()
+  // ── Categoría y modo ───────────────────────────────────
   @IsEnum(CategoriaG2)
-  categoria?: CategoriaG2;
+  categoria!: CategoriaG2;
 
+  /**
+   * Modo de visualización.
+   *  - CATEGORIA (default): eje X = opciones del enum.
+   *  - ELEMENTO          : eje X = elementos, apilado por enum.
+   */
   @IsOptional()
-  @IsArray()
-  @IsInt({ each: true })
-  tramoIds?: number[];
+  @IsEnum(ModoG2)
+  modo?: ModoG2;
 
-  @IsOptional()
-  @IsArray()
-  @IsInt({ each: true })
-  curvaHorizontalIds?: number[];
-
-  @IsOptional()
-  @IsArray()
-  @IsInt({ each: true })
-  curvaVerticalIds?: number[];
-
-  // ----------------------------------------------------------
-  // FASE 2.D — Filtros nuevos (solo aplican a fallas_riel)
-  // ----------------------------------------------------------
-
+  // ── Avanzados RIEL (acotadores) ────────────────────────
   @IsOptional()
   @IsArray()
   @IsEnum(TipoDefectoRiel, { each: true })
@@ -74,4 +88,15 @@ export class Grafico2ConfigDto {
   @IsArray()
   @IsEnum(EstadoFalla, { each: true })
   estadosActuales?: EstadoFalla[];
+
+  // ── Avanzados SOLDADURA (acotadores) ───────────────────
+  @IsOptional()
+  @IsArray()
+  @IsEnum(AccionFalla, { each: true })
+  acciones?: AccionFalla[];
+
+  @IsOptional()
+  @IsArray()
+  @IsEnum(UbicacionFalla, { each: true })
+  ubicacionesFalla?: UbicacionFalla[];
 }

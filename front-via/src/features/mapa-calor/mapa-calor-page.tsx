@@ -1,12 +1,11 @@
 /**
  * mapa-calor-page.tsx
  *
- * CORRECCIONES:
- * - Eliminadas las variables progresivaMin y progresivaMax (nunca usadas por EsquemaBase).
- * - Eliminadas las props progresivaMin y progresivaMax de los 4 usos de <EsquemaBase>.
- * - El parámetro _tramos que reciben las funciones de carga ahora se marca
- *   como ignorado en utils-carga-tramos, así que se sigue pasando por compatibilidad
- *   pero ya no se necesita internamente.
+ * CAMBIOS respecto a la versión anterior:
+ * - Desgaste general e índice: se añade <LeyendaViasDesgaste> debajo de
+ *   la leyenda de semáforo para identificar los 4 carriles por color.
+ * - Fallas: se añade <LeyendaViasFallas segmentacion={...}> que solo
+ *   aparece cuando la segmentación NO es TRAMO (CAMBIAVIA, CURVA_*).
  */
 
 import { useMemo, useState } from 'react';
@@ -28,8 +27,11 @@ import { FiltrosFallas } from './filtros-fallas';
 
 import { EsquemaBase } from './components/esquema-base';
 import { CapaTemperatura } from './components/capa-temperatura';
-import { CapaFallas } from './components/capa-fallas';
-import { CapaDesgasteGeneral } from './components/capa-desgaste-general';
+import { CapaFallas, LeyendaViasFallas } from './components/capa-fallas';
+import {
+  CapaDesgasteGeneral,
+  LeyendaViasDesgaste,
+} from './components/capa-desgaste-general';
 import { CapaDesgasteIndice } from './components/capa-desgaste-indice';
 import { Leyenda } from './components/leyenda';
 import {
@@ -54,7 +56,7 @@ import type {
 } from './types/mapa-calor.types';
 
 const ALTO_PANEL = 720;
-const GRID_LG = '5fr 7fr';
+const GRID_LG    = '5fr 7fr';
 
 const hoyISO = () => {
   const d = new Date();
@@ -68,10 +70,10 @@ const hace12MesesISO = () => {
 };
 
 const STORAGE_KEYS = {
-  TEMPERATURA: 'mapa_calor_temperatura_config',
+  TEMPERATURA:      'mapa_calor_temperatura_config',
   DESGASTE_GENERAL: 'mapa_calor_desgaste_general_config',
-  DESGASTE_INDICE: 'mapa_calor_desgaste_indice_config',
-  FALLAS: 'mapa_calor_fallas_config',
+  DESGASTE_INDICE:  'mapa_calor_desgaste_indice_config',
+  FALLAS:           'mapa_calor_fallas_config',
 };
 
 function leerDeStorage<T>(key: string, defaults: T): T {
@@ -91,28 +93,28 @@ function guardarEnStorage(key: string, valor: unknown) {
 const DEFAULTS_TEMPERATURA: MapaTemperaturaFiltros = {
   fechaDesde: inicioAnioISO(),
   fechaHasta: hoyISO(),
-  tipoValor: 'PROMEDIO',
+  tipoValor:  'PROMEDIO',
 };
 const DEFAULTS_DESGASTE_GENERAL: MapaDesgasteGeneralFiltros = {
   fechaCorte: hoyISO(),
-  puntoW: 'W1',
+  puntoW:     'W1',
 };
 const DEFAULTS_DESGASTE_INDICE: MapaDesgasteIndiceFiltros = {
   fechaCorte: hoyISO(),
-  puntoWA: 'W1',
-  puntoWB: 'W2',
+  puntoWA:    'W1',
+  puntoWB:    'W2',
 };
 const DEFAULTS_FALLAS: MapaFallasFiltros = {
-  fechaDesde: hace12MesesISO(),
-  fechaHasta: hoyISO(),
+  fechaDesde:   hace12MesesISO(),
+  fechaHasta:   hoyISO(),
   segmentacion: 'TRAMO',
 };
 
 const TABS: SectionTabItem[] = [
-  { value: 'temperatura', label: 'Temperatura' },
+  { value: 'temperatura',      label: 'Temperatura'      },
   { value: 'desgaste-general', label: 'Desgaste general' },
-  { value: 'desgaste-indice', label: 'Desgaste índice' },
-  { value: 'fallas', label: 'Fallas' },
+  { value: 'desgaste-indice',  label: 'Desgaste índice'  },
+  { value: 'fallas',           label: 'Fallas'           },
 ];
 
 export function MapaCalorPage() {
@@ -120,10 +122,11 @@ export function MapaCalorPage() {
 
   const { data: esquema, isLoading: esquemaLoading } = useApiQuery({
     queryKey: ['mapa-calor', 'esquema-base'],
-    queryFn: mapaCalorApi.esquemaBase,
+    queryFn:  mapaCalorApi.esquemaBase,
     staleTime: 5 * 60 * 1000,
   });
 
+  // ── Temperatura ──────────────────────────────────────────────────────────
   const [fTemperatura, setFTemperatura] = useState<MapaTemperaturaFiltros>(
     () => leerDeStorage(STORAGE_KEYS.TEMPERATURA, DEFAULTS_TEMPERATURA),
   );
@@ -133,10 +136,11 @@ export function MapaCalorPage() {
     );
   const { data: dataTemperatura, isLoading: loadingTemperatura } = useApiQuery({
     queryKey: ['mapa-calor', 'temperatura', fTemperaturaAplicados],
-    queryFn: () => mapaCalorApi.temperatura(fTemperaturaAplicados),
-    enabled: capaActiva === 'temperatura',
+    queryFn:  () => mapaCalorApi.temperatura(fTemperaturaAplicados),
+    enabled:  capaActiva === 'temperatura',
   });
 
+  // ── Desgaste general ─────────────────────────────────────────────────────
   const [fDesgasteGeneral, setFDesgasteGeneral] =
     useState<MapaDesgasteGeneralFiltros>(() =>
       leerDeStorage(STORAGE_KEYS.DESGASTE_GENERAL, DEFAULTS_DESGASTE_GENERAL),
@@ -148,10 +152,11 @@ export function MapaCalorPage() {
   const { data: dataDesgasteGeneral, isLoading: loadingDesgasteGeneral } =
     useApiQuery({
       queryKey: ['mapa-calor', 'desgaste-general', fDesgasteGeneralAplicados],
-      queryFn: () => mapaCalorApi.desgasteGeneral(fDesgasteGeneralAplicados),
-      enabled: capaActiva === 'desgaste-general',
+      queryFn:  () => mapaCalorApi.desgasteGeneral(fDesgasteGeneralAplicados),
+      enabled:  capaActiva === 'desgaste-general',
     });
 
+  // ── Desgaste índice ──────────────────────────────────────────────────────
   const [fDesgasteIndice, setFDesgasteIndice] =
     useState<MapaDesgasteIndiceFiltros>(() =>
       leerDeStorage(STORAGE_KEYS.DESGASTE_INDICE, DEFAULTS_DESGASTE_INDICE),
@@ -163,10 +168,11 @@ export function MapaCalorPage() {
   const { data: dataDesgasteIndice, isLoading: loadingDesgasteIndice } =
     useApiQuery({
       queryKey: ['mapa-calor', 'desgaste-indice', fDesgasteIndiceAplicados],
-      queryFn: () => mapaCalorApi.desgasteIndice(fDesgasteIndiceAplicados),
-      enabled: capaActiva === 'desgaste-indice',
+      queryFn:  () => mapaCalorApi.desgasteIndice(fDesgasteIndiceAplicados),
+      enabled:  capaActiva === 'desgaste-indice',
     });
 
+  // ── Fallas ───────────────────────────────────────────────────────────────
   const [fFallas, setFFallas] = useState<MapaFallasFiltros>(() =>
     leerDeStorage(STORAGE_KEYS.FALLAS, DEFAULTS_FALLAS),
   );
@@ -175,10 +181,11 @@ export function MapaCalorPage() {
   );
   const { data: dataFallas, isLoading: loadingFallas } = useApiQuery({
     queryKey: ['mapa-calor', 'fallas', fFallasAplicados],
-    queryFn: () => mapaCalorApi.fallas(fFallasAplicados),
-    enabled: capaActiva === 'fallas',
+    queryFn:  () => mapaCalorApi.fallas(fFallasAplicados),
+    enabled:  capaActiva === 'fallas',
   });
 
+  // ── Handlers ─────────────────────────────────────────────────────────────
   const handleAplicarTemperatura = () => {
     setFTemperaturaAplicados({ ...fTemperatura });
     guardarEnStorage(STORAGE_KEYS.TEMPERATURA, fTemperatura);
@@ -196,10 +203,11 @@ export function MapaCalorPage() {
     guardarEnStorage(STORAGE_KEYS.FALLAS, fFallas);
   };
 
+  // ── Datos del esquema ─────────────────────────────────────────────────────
   const estaciones = esquema?.estaciones ?? [];
-  const tramos = esquema?.tramos ?? [];
-  // FIX: progresivaMin y progresivaMax eliminadas — EsquemaBase no las usa
+  const tramos     = esquema?.tramos     ?? [];
 
+  // ── Carga por tramo (para expandir el SVG cuando hay mucha densidad) ─────
   const cargaFallasMap = useMemo(
     () => cargaFallas(
       dataFallas?.lineas ?? [],
@@ -231,7 +239,7 @@ export function MapaCalorPage() {
         value={capaActiva}
         onValueChange={setCapaActiva}
       >
-        {/* ── TEMPERATURA ── */}
+        {/* ── TEMPERATURA ─────────────────────────────────────────────── */}
         <SectionTabPanel value="temperatura">
           <div className="flex flex-col gap-4">
             <FiltrosTemperatura
@@ -250,11 +258,7 @@ export function MapaCalorPage() {
                       <Leyenda titulo="Temperatura promedio" items={LEYENDA_TEMPERATURA} />
                     </div>
                     <div className="flex-1 min-h-0">
-                      {/* FIX: sin progresivaMin / progresivaMax */}
-                      <EsquemaBase
-                        estaciones={estaciones}
-                        tramos={tramos}
-                      >
+                      <EsquemaBase estaciones={estaciones} tramos={tramos}>
                         {(utils) => (
                           <CapaTemperatura
                             tramos={dataTemperatura?.tramos ?? []}
@@ -279,7 +283,7 @@ export function MapaCalorPage() {
           </div>
         </SectionTabPanel>
 
-        {/* ── DESGASTE GENERAL ── */}
+        {/* ── DESGASTE GENERAL ────────────────────────────────────────── */}
         <SectionTabPanel value="desgaste-general">
           <div className="flex flex-col gap-4">
             <FiltrosDesgasteGeneral
@@ -294,11 +298,15 @@ export function MapaCalorPage() {
               <LayoutMapaLista
                 mapa={
                   <>
-                    <div className="mb-3 shrink-0">
+                    {/* Leyenda semáforo (verde/amarillo/rojo) */}
+                    <div className="mb-2 shrink-0">
                       <Leyenda titulo="Desgaste lateral" items={LEYENDA_DESGASTE_GENERAL} />
                     </div>
+                    {/* Leyenda de carriles por color de vía+riel */}
+                    <div className="mb-3 shrink-0">
+                      <LeyendaViasDesgaste />
+                    </div>
                     <div className="flex-1 min-h-0">
-                      {/* FIX: sin progresivaMin / progresivaMax */}
                       <EsquemaBase
                         estaciones={estaciones}
                         tramos={tramos}
@@ -327,7 +335,7 @@ export function MapaCalorPage() {
           </div>
         </SectionTabPanel>
 
-        {/* ── DESGASTE ÍNDICE ── */}
+        {/* ── DESGASTE ÍNDICE ──────────────────────────────────────────── */}
         <SectionTabPanel value="desgaste-indice">
           <div className="flex flex-col gap-4">
             <FiltrosDesgasteIndice
@@ -342,11 +350,15 @@ export function MapaCalorPage() {
               <LayoutMapaLista
                 mapa={
                   <>
-                    <div className="mb-3 shrink-0">
+                    {/* Leyenda semáforo */}
+                    <div className="mb-2 shrink-0">
                       <Leyenda titulo="Índice comparativo" items={LEYENDA_DESGASTE_INDICE} />
                     </div>
+                    {/* Leyenda de carriles por color de vía+riel */}
+                    <div className="mb-3 shrink-0">
+                      <LeyendaViasDesgaste />
+                    </div>
                     <div className="flex-1 min-h-0">
-                      {/* FIX: sin progresivaMin / progresivaMax */}
                       <EsquemaBase
                         estaciones={estaciones}
                         tramos={tramos}
@@ -375,7 +387,7 @@ export function MapaCalorPage() {
           </div>
         </SectionTabPanel>
 
-        {/* ── FALLAS ── */}
+        {/* ── FALLAS ───────────────────────────────────────────────────── */}
         <SectionTabPanel value="fallas">
           <div className="flex flex-col gap-4">
             <FiltrosFallas
@@ -390,11 +402,22 @@ export function MapaCalorPage() {
               <LayoutMapaLista
                 mapa={
                   <>
-                    <div className="mb-3 shrink-0">
+                    {/* Leyenda semáforo */}
+                    <div className="mb-2 shrink-0">
                       <Leyenda titulo="Fallas" items={LEYENDA_FALLAS} />
                     </div>
+                    {/*
+                      Leyenda de vías — solo visible cuando la segmentación
+                      es CAMBIAVIA o CURVA_*. En modo TRAMO no hay carriles.
+                    */}
+                    {fFallasAplicados.segmentacion !== 'TRAMO' && (
+                      <div className="mb-3 shrink-0">
+                        <LeyendaViasFallas
+                          segmentacion={fFallasAplicados.segmentacion ?? 'TRAMO'}
+                        />
+                      </div>
+                    )}
                     <div className="flex-1 min-h-0">
-                      {/* FIX: sin progresivaMin / progresivaMax */}
                       <EsquemaBase
                         estaciones={estaciones}
                         tramos={tramos}
@@ -428,11 +451,13 @@ export function MapaCalorPage() {
   );
 }
 
+// ─── Layout helpers ──────────────────────────────────────────────────────────
+
 function LayoutMapaLista({
   mapa,
   lista,
 }: {
-  mapa: React.ReactNode;
+  mapa:  React.ReactNode;
   lista: React.ReactNode;
 }) {
   return (

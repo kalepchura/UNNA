@@ -262,6 +262,7 @@ export class MedicionesDesgasteService {
       codigoElemento: elemento.codigoElemento,
       progresiva: elemento.progresiva,
       via: elemento.via,
+      riel: elemento.riel,
       tramoCodigo: elemento.tramo?.codigo ?? '',
       tramoNombre: elemento.tramo?.nombre ?? '',
       mediciones,

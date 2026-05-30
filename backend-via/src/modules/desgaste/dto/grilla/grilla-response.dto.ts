@@ -27,7 +27,11 @@ export class FilaGrillaDto {
   progresiva!: number;
 
   via!: string;
+
+  riel!: string;
+
   tramoCodigo!: string;
+  
   tramoNombre!: string;
 
   /**

@@ -13,12 +13,8 @@ import { EscenarioMtbResponseDto } from '../dto/escenario-mtb/escenario-mtb-resp
 
 import { AuditoriaService } from '../../auditoria/services/auditoria.service';
 import { registrarAuditoria } from '../../auditoria/helpers/auditoria.helper';
-import {
-  ModuloAuditoria,
-  OperacionAuditoria,
-} from '../../../common/enums';
+import { ModuloAuditoria, OperacionAuditoria } from '../../../common/enums';
 import { AuthenticatedUser } from '../../../common/interfaces/authenticated-user.interface';
-import { ESCENARIO_REAL_NOMBRE } from '../../../common/constants/desgaste.constants';
 import { KpisDesgasteService } from './kpis-desgaste.service';
 import { GraficoG2Service } from './grafico-g2.service';
 import { GraficoG3Service } from './grafico-g3.service';
@@ -41,9 +37,8 @@ export class EscenariosMtbService {
 
   async listar(filtros: FiltrarEscenariosMtbDto) {
     const [escenarios, total] = await this.escenariosRepo.listar(filtros);
-    const page = filtros.page ?? 1;
+    const page  = filtros.page  ?? 1;
     const limit = filtros.limit ?? 20;
-
     return {
       data: escenarios.map((e) => EscenarioMtbResponseDto.fromEntity(e)),
       total,
@@ -58,9 +53,8 @@ export class EscenariosMtbService {
       ...filtros,
       soloEliminados: true,
     });
-    const page = filtros.page ?? 1;
+    const page  = filtros.page  ?? 1;
     const limit = filtros.limit ?? 20;
-
     return {
       data: escenarios.map((e) => EscenarioMtbResponseDto.fromEntity(e)),
       total,
@@ -70,7 +64,10 @@ export class EscenariosMtbService {
     };
   }
 
-  async obtenerPorId(id: number, incluirEliminados = false): Promise<EscenarioMtbResponseDto> {
+  async obtenerPorId(
+    id: number,
+    incluirEliminados = false,
+  ): Promise<EscenarioMtbResponseDto> {
     const esc = await this.escenariosRepo.buscarPorId(id, incluirEliminados);
     if (!esc) throw new NotFoundException(`Escenario ${id} no encontrado`);
     return EscenarioMtbResponseDto.fromEntity(esc);
@@ -84,28 +81,31 @@ export class EscenariosMtbService {
     dto: CrearEscenarioMtbDto,
     user: AuthenticatedUser,
   ): Promise<EscenarioMtbResponseDto> {
-    this.validarNoEsReservado(dto.nombre);
-
     const existente = await this.escenariosRepo.buscarPorNombre(dto.nombre);
     if (existente) {
       throw new ConflictException(
         `Ya existe un escenario con el nombre "${dto.nombre}"` +
-          (existente.eliminado ? ' (eliminado, contacte al admin para restaurarlo)' : ''),
+          (existente.eliminado
+            ? ' (eliminado, contacte al admin para restaurarlo)'
+            : ''),
       );
     }
 
+    // Los usuarios NUNCA crean escenarios con esReal = true.
+    // Solo el seed inicial lo hace directamente en BD.
     const creado = await this.escenariosRepo.crear({
-      nombre: dto.nombre,
-      descripcion: dto.descripcion ?? null,
-      creadoPor: user.id,
+      nombre:         dto.nombre,
+      descripcion:    dto.descripcion ?? null,
+      esReal:         false,
+      creadoPor:      user.id,
       actualizadoPor: null,
-      eliminado: false,
+      eliminado:      false,
       eliminadoPorId: null,
     });
 
     await registrarAuditoria(this.auditoria, {
-      modulo: ModuloAuditoria.DESGASTE,
-      entidad: this.NOMBRE_ENTIDAD,
+      modulo:    ModuloAuditoria.DESGASTE,
+      entidad:   this.NOMBRE_ENTIDAD,
       entidadId: String(creado.id),
       operacion: OperacionAuditoria.CREATE,
       user,
@@ -113,7 +113,6 @@ export class EscenariosMtbService {
     });
 
     this.invalidarCacheAnalitico();
-
     return EscenarioMtbResponseDto.fromEntity(creado);
   }
 
@@ -129,23 +128,16 @@ export class EscenariosMtbService {
     const esc = await this.escenariosRepo.buscarPorId(id);
     if (!esc) throw new NotFoundException(`Escenario ${id} no encontrado`);
 
-    if (esc.nombre === ESCENARIO_REAL_NOMBRE && dto.nombre !== undefined && dto.nombre !== ESCENARIO_REAL_NOMBRE) {
-      throw new BadRequestException(
-        `El escenario '${ESCENARIO_REAL_NOMBRE}' no puede ser renombrado`,
-      );
-    }
-
     const cambios: Partial<EscenarioMTB> = { actualizadoPor: user.id };
 
     if (dto.nombre !== undefined && dto.nombre !== esc.nombre) {
-      this.validarNoEsReservado(dto.nombre);
-
       const conflicto = await this.escenariosRepo.buscarPorNombre(dto.nombre);
       if (conflicto && conflicto.id !== id) {
         throw new ConflictException(
           `Ya existe un escenario con el nombre "${dto.nombre}"`,
         );
       }
+      // El escenario REAL puede renombrarse libremente — esReal no cambia nunca.
       cambios.nombre = dto.nombre;
     }
 
@@ -156,8 +148,8 @@ export class EscenariosMtbService {
     await this.escenariosRepo.actualizar(esc, cambios);
 
     await registrarAuditoria(this.auditoria, {
-      modulo: ModuloAuditoria.DESGASTE,
-      entidad: this.NOMBRE_ENTIDAD,
+      modulo:    ModuloAuditoria.DESGASTE,
+      entidad:   this.NOMBRE_ENTIDAD,
       entidadId: String(id),
       operacion: OperacionAuditoria.UPDATE,
       user,
@@ -165,7 +157,6 @@ export class EscenariosMtbService {
     });
 
     this.invalidarCacheAnalitico();
-
     const actualizado = await this.escenariosRepo.buscarPorId(id);
     return EscenarioMtbResponseDto.fromEntity(actualizado!);
   }
@@ -178,9 +169,12 @@ export class EscenariosMtbService {
     const esc = await this.escenariosRepo.buscarPorId(id);
     if (!esc) throw new NotFoundException(`Escenario ${id} no encontrado`);
 
-    if (esc.nombre === ESCENARIO_REAL_NOMBRE) {
+    // Protección por campo esReal — independiente del nombre actual.
+    // Aunque el usuario haya renombrado el escenario REAL, este bloqueo funciona.
+    if (esc.esReal) {
       throw new BadRequestException(
-        `El escenario '${ESCENARIO_REAL_NOMBRE}' es necesario para el sistema y no puede ser eliminado`,
+        `El escenario de mediciones reales no puede ser eliminado. ` +
+          `Es necesario para el funcionamiento del sistema.`,
       );
     }
 
@@ -189,14 +183,14 @@ export class EscenariosMtbService {
     }
 
     await this.escenariosRepo.actualizar(esc, {
-      eliminado: true,
+      eliminado:      true,
       eliminadoPorId: user.id,
       actualizadoPor: user.id,
     });
 
     await registrarAuditoria(this.auditoria, {
-      modulo: ModuloAuditoria.DESGASTE,
-      entidad: this.NOMBRE_ENTIDAD,
+      modulo:    ModuloAuditoria.DESGASTE,
+      entidad:   this.NOMBRE_ENTIDAD,
       entidadId: String(id),
       operacion: OperacionAuditoria.DELETE,
       user,
@@ -222,19 +216,19 @@ export class EscenariosMtbService {
     if (conflicto && conflicto.id !== id && !conflicto.eliminado) {
       throw new ConflictException(
         `No se puede restaurar: ya existe un escenario activo con el nombre "${esc.nombre}". ` +
-        `Renombre o elimine el otro antes de restaurar este.`,
+          `Renombre o elimine el otro antes de restaurar este.`,
       );
     }
 
     await this.escenariosRepo.actualizar(esc, {
-      eliminado: false,
+      eliminado:      false,
       eliminadoPorId: null,
       actualizadoPor: user.id,
     });
 
     await registrarAuditoria(this.auditoria, {
-      modulo: ModuloAuditoria.DESGASTE,
-      entidad: this.NOMBRE_ENTIDAD,
+      modulo:    ModuloAuditoria.DESGASTE,
+      entidad:   this.NOMBRE_ENTIDAD,
       entidadId: String(id),
       operacion: OperacionAuditoria.RESTORE,
       user,
@@ -255,14 +249,6 @@ export class EscenariosMtbService {
   // ----------------------------------------------------------
   // HELPERS PRIVADOS
   // ----------------------------------------------------------
-
-  private validarNoEsReservado(nombre: string): void {
-    if (nombre.trim().toUpperCase() === ESCENARIO_REAL_NOMBRE) {
-      throw new BadRequestException(
-        `El nombre '${ESCENARIO_REAL_NOMBRE}' está reservado para el escenario histórico del sistema`,
-      );
-    }
-  }
 
   private invalidarCacheAnalitico(): void {
     this.kpisService.invalidarCache();

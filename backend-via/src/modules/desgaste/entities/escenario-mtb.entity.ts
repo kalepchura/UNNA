@@ -8,7 +8,6 @@ import {
 import { AuditoriaBase } from '../../../common/entities/auditoria-base.entity';
 import { MtbEscenario } from './mtb-escenario.entity';
 
-
 /**
  * ============================================================
  * EscenarioMTB
@@ -18,9 +17,14 @@ import { MtbEscenario } from './mtb-escenario.entity';
  * Es la ÚNICA tabla del módulo Desgaste con AuditoriaBase
  * completa y soft delete restaurable.
  *
- * Hay un escenario especial llamado 'REAL' (constante
- * ESCENARIO_REAL_NOMBRE) que contiene los valores históricos
- * efectivamente registrados, no proyectados.
+ * El campo `esReal` identifica el escenario histórico del sistema.
+ * Es un flag en BD — NO depende del nombre. El usuario puede
+ * renombrar el escenario REAL libremente sin perder su protección.
+ *
+ * Reglas sobre esReal = true:
+ *  - No se puede eliminar (soft delete bloqueado en el service)
+ *  - Solo existe uno en la tabla (garantizado por el seed)
+ *  - Nombre y descripción se pueden editar libremente
  *
  * Referencia: Informe sección 6.7.3.
  * ============================================================
@@ -30,7 +34,10 @@ export class EscenarioMTB extends AuditoriaBase {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  /** Nombre único. Ej: 'REAL', 'Escenario 1 - INCR 13.108%'. */
+  /**
+   * Nombre único. Editable libremente, incluso para el escenario REAL.
+   * Ej: 'REAL', 'Mediciones históricas', 'Escenario 1 - INCR 13.108%'.
+   */
   @Column({ name: 'nombre', type: 'varchar', length: 100, unique: true })
   @Index()
   nombre!: string;
@@ -39,8 +46,20 @@ export class EscenarioMTB extends AuditoriaBase {
   descripcion!: string | null;
 
   /**
+   * Identifica el escenario histórico del sistema.
+   *  - true  → escenario REAL (no eliminable, único en la tabla)
+   *  - false → escenario de proyección (gestionable libremente)
+   *
+   * Este campo NO cambia nunca después del seed inicial.
+   * Es la fuente de verdad para todas las protecciones del sistema.
+   * No depende del nombre — el usuario puede renombrar el REAL libremente.
+   */
+  @Column({ name: 'es_real', type: 'boolean', default: false })
+  esReal!: boolean;
+
+  /**
    * Valores anuales asociados al escenario.
-   * Eager:false para no cargarlos por defecto en listados.
+   * Eager: false para no cargarlos por defecto en listados.
    */
   @OneToMany(() => MtbEscenario, (mtb) => mtb.escenario, {
     cascade: ['insert', 'update'],

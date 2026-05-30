@@ -1,59 +1,35 @@
+// frontend/src/features/fallas/types/grafico-3.types.ts
+
 /**
  * ============================================================
- * TIPOS DEL GRÁFICO 3 — Fallas por velocidad
+ * G3 — Fallas por velocidad (barras)
  * ============================================================
- * Espejo del backend en:
- *   backend/src/modules/fallas/dto/graficos/grafico-3/
- *
- * Filtros disponibles:
- *  - Temporales: fechaDesde, fechaHasta
- *  - Categóricos: tipoFalla, tipoVia, apilarPorTipo
- *  - Geográficos: tramoIds, curvaHorizontalIds, curvaVerticalIds
- *  - Caracterización (FASE 2.D, solo riel):
- *    tipoDefectos, elementosAfectados, zonasAfectadas, perfiles, estadosActuales
- *
- * apilarPorTipo:
- *  - false (default): 1 serie "Total"
- *  - true: 2 series apiladas "Riel" + "Soldadura"
+ * Eje X: velocidades del catálogo (ascendente).
+ * Eje Y: cantidad.
+ * Sin avanzados.
  * ============================================================
  */
 
+import type { TipoFallaFiltro } from '@/lib/types/enums/fallas.enum';
 import type {
-  TipoFallaFiltro,
-  TipoDefectoRiel,
-  ElementoAfectadoRiel,
-  ZonaAfectadaRiel,
-  PerfilFallaRiel,
-  EstadoFalla,
-} from '@/lib/types/enums/fallas.enum';
+  NivelAnalisis,
+  TipoViaFiltroFallas,
+} from '@/lib/types/enums/fallas-graficos.enum';
 
 export interface Grafico3Filtros {
-  /** Fecha en formato YYYY-MM-DD. */
   fechaDesde?: string;
-  /** Fecha en formato YYYY-MM-DD. */
   fechaHasta?: string;
 
+  tipoVia?: TipoViaFiltroFallas;
+  nivel?: NivelAnalisis;
   tipoFalla?: TipoFallaFiltro;
-  tipoVia?: string;
+  elementoIds?: number[];
 
   /**
-   * Si true, devuelve 2 series apiladas (Riel + Soldadura).
-   * Si false, devuelve 1 serie "Total".
+   * Si true, 2 series apiladas (Riel + Soldadura).
+   * Solo aplica si AMBAS están incluidas; en otro caso se ignora.
    */
   apilarPorTipo?: boolean;
-
-  tramoIds?: number[];
-
-  // ----- FASE 1 — Filtros de curva (solo aplican a fallas_riel) -----
-  curvaHorizontalIds?: number[];
-  curvaVerticalIds?: number[];
-
-  // ----- FASE 2.D — Filtros por caracterización (solo aplican a fallas_riel) -----
-  tipoDefectos?: TipoDefectoRiel[];
-  elementosAfectados?: ElementoAfectadoRiel[];
-  zonasAfectadas?: ZonaAfectadaRiel[];
-  perfiles?: PerfilFallaRiel[];
-  estadosActuales?: EstadoFalla[];
 }
 
 export interface Grafico3Serie {
@@ -62,12 +38,15 @@ export interface Grafico3Serie {
   datos: number[];
 }
 
+export interface Grafico3Metadata {
+  totalFallas: number;
+  calculadoEn: Date;
+  nivel?: NivelAnalisis;
+  mensaje?: string;
+}
+
 export interface Grafico3Response {
-  configAplicada: Grafico3Filtros;
   categorias: string[];
   series: Grafico3Serie[];
-  metadata: {
-    totalFallas: number;
-    calculadoEn: Date;
-  };
+  metadata: Grafico3Metadata;
 }

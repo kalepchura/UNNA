@@ -1,6 +1,25 @@
-import { IsEnum, IsInt, IsOptional, Min, Max } from 'class-validator';
+import {
+  IsInt,
+  IsEnum,
+  IsOptional,
+  Min,
+  Max,
+  IsArray,
+  ArrayMinSize,
+  ArrayUnique,
+  IsIn,
+} from 'class-validator';
 import { TipoAgrupacionDesgaste, TipoViaFiltro } from '../../../../common/enums';
 
+/**
+ * Request del wizard de filtros (G1 y G3).
+ *
+ * Cambios respecto a la versión anterior:
+ *  - agrupacionId (singular) → se mantiene por retrocompatibilidad con G1
+ *  - agrupacionIds (plural)  → nuevo, para G3 con múltiples selecciones
+ *
+ * El service usa agrupacionIds si está presente, sino cae a agrupacionId.
+ */
 export class WizardFiltrosRequestDto {
   @IsInt()
   @Min(1)
@@ -11,11 +30,25 @@ export class WizardFiltrosRequestDto {
   @IsEnum(TipoAgrupacionDesgaste)
   tipoAgrupacion?: TipoAgrupacionDesgaste;
 
-  /** ID del tramo/curva seleccionado (paso 2). Necesario desde paso 4. */
+  /**
+   * ID singular de agrupación (retrocompatibilidad G1).
+   * Para el G3 usar agrupacionIds[].
+   */
   @IsOptional()
   @IsInt()
   @Min(1)
   agrupacionId?: number;
+
+  /**
+   * IDs múltiples de agrupación (G3 — paso 4).
+   * Si se envía este campo, tiene prioridad sobre agrupacionId.
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayUnique()
+  @IsInt({ each: true })
+  agrupacionIds?: number[];
 
   @IsOptional()
   @IsEnum(TipoViaFiltro)

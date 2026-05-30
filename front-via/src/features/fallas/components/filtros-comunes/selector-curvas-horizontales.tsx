@@ -1,10 +1,3 @@
-/**
- * Selector reutilizable de curvas horizontales (multi-select con opción "Todas").
- * Mismo patrón que SelectorTramos: encapsula la conversión number[] ↔ string[].
- *
- * Usado en filtros de los 3 gráficos (Fase 1 — filtro de curva H).
- */
-
 import { MultiSelect } from '@/components/ui/multi-select';
 import { useCurvasHorizontalesOptions } from '@/hooks/use-curvas-horizontales-options';
 
@@ -12,14 +5,16 @@ interface SelectorCurvasHorizontalesProps {
   value: number[];
   onChange: (ids: number[]) => void;
   placeholder?: string;
+  viaFiltro?: string;
 }
 
 export function SelectorCurvasHorizontales({
   value,
   onChange,
   placeholder = 'Seleccionar curvas horizontales...',
+  viaFiltro,
 }: SelectorCurvasHorizontalesProps) {
-  const { options } = useCurvasHorizontalesOptions();
+  const { options } = useCurvasHorizontalesOptions(viaFiltro);
 
   return (
     <>

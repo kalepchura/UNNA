@@ -188,11 +188,12 @@ export type ActualizarFallaRielDto = Partial<CrearFallaRielDto>;
  * El frontend ya tiene los catálogos cargados con sus IDs y solo
  * envía los IDs de los seleccionados.
  *
- * Nota: el backend de momento NO acepta filtros por enum nuevo
- * en el listado (eso fue decisión de F-1: gráficos sí, listado no).
- * Si en el futuro se quieren agregar, agregar aquí Y en el backend.
+ * FASE 3 — Listado completo:
+ *   El listado ahora acepta filtros por TODOS los enums de
+ *   caracterización. Los filtros son multi-select; vacío = no acota.
  */
 export interface FiltrosFallaRiel {
+  // ----- Geográficos -----
   /** IDs de tramos seleccionados en el dropdown. */
   tramoIds?: number[];
   /** IDs de curvas horizontales seleccionadas. */
@@ -200,12 +201,29 @@ export interface FiltrosFallaRiel {
   /** IDs de curvas verticales seleccionadas. */
   curvaVerticalIds?: number[];
 
+  // ----- Atributos directos -----
   via?: TipoVia;
   carril?: LadoRiel;
 
   /** Rango de fechas (formato YYYY-MM-DD). */
   fechaDesde?: string;
   fechaHasta?: string;
+
+  // ----- FASE 3: filtros por enum (multi-select) -----
+  /** Estado actual de la falla. Vacío = todos. */
+  estadosActuales?: EstadoFalla[];
+  /** Acción actual de la falla. Vacío = todas (incluyendo las sin acción). */
+  accionesActuales?: AccionRiel[];
+  /** Tipo de defecto físico. Vacío = todos. */
+  tipoDefectos?: TipoDefectoRiel[];
+  /** Elemento afectado. Vacío = todos. */
+  elementosAfectados?: ElementoAfectadoRiel[];
+  /** Zona del riel afectada. Vacío = todas. */
+  zonasAfectadas?: ZonaAfectadaRiel[];
+  /** Perfil técnico del riel. Vacío = todos. */
+  perfiles?: PerfilFallaRiel[];
+  /** Alta/Baja en curvas (o NO_APLICA en tangentes). Vacío = todos. */
+  altasBajas?: AltaBaja[];
 
   /** Paginación. Defaults: page=1, limit=20. */
   page?: number;

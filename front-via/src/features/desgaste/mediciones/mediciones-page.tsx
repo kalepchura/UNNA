@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Save, ChevronLeft, ChevronRight } from 'lucide-react';
 
 import { useApiQuery } from '@/hooks/use-api-query';
@@ -23,21 +23,72 @@ import type {
 } from '../types/mediciones.types';
 
 const LIMIT = 10;
+const STORAGE_KEY = 'mediciones_filtros';
+
+function leerFiltrosGuardados(): CargarGrillaFiltros | null {
+  try {
+    const saved = sessionStorage.getItem(STORAGE_KEY);
+    if (saved) return JSON.parse(saved) as CargarGrillaFiltros;
+  } catch { /* ignore */ }
+  return null;
+}
+
+function guardarFiltros(filtros: CargarGrillaFiltros) {
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(filtros));
+  } catch { /* ignore */ }
+}
 
 export function MedicionesPage() {
-  const [filtros, setFiltros] = useState<CargarGrillaFiltros>({});
-  const [filtrosAplicados, setFiltrosAplicados] = useState<CargarGrillaFiltros>({});
+  const invalidate = useInvalidate();
+
+  // ── Cargar lista de escenarios para detectar el REAL ──────────────────────
+  const { data: escenariosData } = useApiQuery({
+    queryKey: ['desgaste', 'escenarios', 'selector'],
+    queryFn: () => desgasteApi.escenarios.buscar({ page: 1, limit: 100 }),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // ID del escenario REAL (esReal = true)
+  const idEscenarioReal = useMemo(
+    () => escenariosData?.data?.find((e) => e.esReal && !e.eliminado)?.id ?? null,
+    [escenariosData],
+  );
+
+  // ── Estado de filtros ─────────────────────────────────────────────────────
+  // Inicializa desde sessionStorage si existe, sino vacío
+  const [filtros, setFiltros] = useState<CargarGrillaFiltros>(
+    () => leerFiltrosGuardados() ?? {},
+  );
+  const [filtrosAplicados, setFiltrosAplicados] = useState<CargarGrillaFiltros>(
+    () => leerFiltrosGuardados() ?? {},
+  );
+
+  // ── Auto-carga del escenario REAL al entrar ───────────────────────────────
+  // Solo si no hay filtros guardados en sesión (primera visita o sesión nueva)
+  useEffect(() => {
+    if (!idEscenarioReal) return;
+    // Si ya hay un escenario seleccionado (guardado en sesión), no sobreescribir
+    if (filtrosAplicados.escenarioId) return;
+
+    const filtrosIniciales: CargarGrillaFiltros = { escenarioId: idEscenarioReal };
+    setFiltros(filtrosIniciales);
+    setFiltrosAplicados(filtrosIniciales);
+    guardarFiltros(filtrosIniciales);
+  }, [idEscenarioReal]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [celdasModificadas, setCeldasModificadas] = useState<CeldaModificadaDto[]>([]);
   const [busqueda, setBusqueda] = useState('');
   const [pagina, setPagina] = useState(1);
-  const invalidate = useInvalidate();
 
+  // ── Query de grilla ───────────────────────────────────────────────────────
   const { data, isLoading } = useApiQuery({
     queryKey: ['desgaste', 'mediciones', 'grilla', filtrosAplicados],
     queryFn: () => desgasteApi.mediciones.cargarGrilla(filtrosAplicados),
     enabled: !!filtrosAplicados.escenarioId,
   });
 
+  // ── Filtrado local por búsqueda ───────────────────────────────────────────
   const filasFiltradas = useMemo(() => {
     if (!data?.filas) return [];
     if (!busqueda.trim()) return data.filas;
@@ -46,20 +97,19 @@ export function MedicionesPage() {
       (f) =>
         String(f.codigoElemento).toLowerCase().includes(q) ||
         String(f.progresiva).includes(q) ||
-        f.via.toLowerCase().includes(q),
+        f.via.toLowerCase().includes(q) ||
+        f.riel.toLowerCase().includes(q),
     );
   }, [data?.filas, busqueda]);
 
   const totalPaginas = Math.max(1, Math.ceil(filasFiltradas.length / LIMIT));
-  const filasPagina = filasFiltradas.slice(
-    (pagina - 1) * LIMIT,
-    pagina * LIMIT,
-  );
+  const filasPagina  = filasFiltradas.slice((pagina - 1) * LIMIT, pagina * LIMIT);
 
   const grillaPaginada: GrillaResponse | undefined = data
     ? { ...data, filas: filasPagina }
     : undefined;
 
+  // ── Guardar cambios ───────────────────────────────────────────────────────
   const guardarMut = useApiMutation({
     mutationFn: () =>
       desgasteApi.mediciones.guardarCambios({
@@ -73,6 +123,7 @@ export function MedicionesPage() {
     mensajeExito: 'Cambios guardados correctamente',
   });
 
+  // ── Handlers ──────────────────────────────────────────────────────────────
   const handleAplicar = () => {
     const filtrosExpandidos: CargarGrillaFiltros = { ...filtros };
 
@@ -80,13 +131,12 @@ export function MedicionesPage() {
       const desde = filtros.anios[0];
       const hasta = filtros.anios[1];
       const aniosExpandidos: number[] = [];
-      for (let a = desde; a <= hasta; a++) {
-        aniosExpandidos.push(a);
-      }
+      for (let a = desde; a <= hasta; a++) aniosExpandidos.push(a);
       filtrosExpandidos.anios = aniosExpandidos;
     }
 
     setFiltrosAplicados(filtrosExpandidos);
+    guardarFiltros(filtrosExpandidos); // ← persiste durante la navegación
     setPagina(1);
     setBusqueda('');
     setCeldasModificadas([]);
@@ -98,9 +148,9 @@ export function MedicionesPage() {
   };
 
   const handleCeldaChange = (celda: CeldaModificadaDto) => {
-    setCeldasModificadas((prev: CeldaModificadaDto[]) => {
+    setCeldasModificadas((prev) => {
       const idx = prev.findIndex(
-        (c: CeldaModificadaDto) =>
+        (c) =>
           c.elementoId === celda.elementoId &&
           c.anio === celda.anio &&
           c.trimestre === celda.trimestre &&
@@ -122,7 +172,7 @@ export function MedicionesPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Carga de Mediciones"
-        subtitle="Selecciona un escenario, filtra por tramo y año, y edita las celdas."
+        subtitle="Filtra por tramo y año, y edita las celdas directamente."
         breadcrumb={[{ label: 'Desgaste' }, { label: 'Mediciones' }]}
         actions={
           hasCambios ? (
@@ -151,7 +201,7 @@ export function MedicionesPage() {
 
       {!filtrosAplicados.escenarioId && (
         <div className="text-sm text-muted-foreground text-center py-8">
-          Selecciona un escenario y aplica los filtros para ver los valores.
+          Cargando escenario…
         </div>
       )}
 

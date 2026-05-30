@@ -1,25 +1,3 @@
-// frontend/src/components/shared/stepper.tsx
-//
-// Stepper visual horizontal — para wizards de múltiples pasos.
-//
-// Diseño:
-//  - Círculos numerados unidos por líneas.
-//  - Estados: completed (✓), current (relleno brand), pending (outline).
-//  - Labels debajo de cada paso.
-//  - Pasos completados son clickeables (vuelve a ese paso).
-//
-// Uso:
-//   <Stepper
-//     currentStep={3}
-//     steps={[
-//       { label: 'Agrupación' },
-//       { label: 'Selección' },
-//       { label: 'Vía' },
-//       { label: 'Elementos' },
-//       { label: 'Puntos' },
-//     ]}
-//     onStepClick={(idx) => setPaso(idx + 1)}
-//   />
 
 import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';

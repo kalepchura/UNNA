@@ -1,231 +1,274 @@
+// frontend/src/features/fallas/components/grafico-2-distribucion.tsx
+
 /**
- * Gráfico 2 — Distribución de fallas por categoría.
+ * G2 — Distribución por categoría.
  *
- * Renderizado como DONUT chart con ApexCharts.
- * Muestra el total de fallas en el centro.
- * Tooltip al hacer hover (etiquetas no se sobreponen visualmente).
- *
- * FASE 2.D — Fix:
- *  - getSubtitleText ahora usa LABEL_CATEGORIA_G2 importado, en lugar
- *    de un diccionario hardcodeado de 4 valores. Esto soporta las 11
- *    categorías (las 4 originales + 7 de Fase 2.D).
+ * Diseño:
+ *  - Botones custom de zoom (+/-, reset) arriba del gráfico, VISIBLES
+ *    siempre (no escondidos en menú). Funcionan llamando a métodos
+ *    nativos de ApexCharts (zoomX, resetSeries).
+ *  - Menú ☰ de ApexCharts solo conserva las DESCARGAS (PNG/SVG/CSV).
+ *  - Tooltip apilado: shared:false + intersect:true (solo segmento tocado).
+ *  - columnWidth dinámico para que con pocas categorías no se vea descuadrado.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ApexCharts from 'apexcharts';
+import { ZoomIn, ZoomOut, RotateCcw, MoveHorizontal } from 'lucide-react';
 
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
-import {
-  exportPNG,
-  exportSVG,
-  exportCSV,
-} from '@/utils/exports/chart-export.utils';
-
-import { ChartExportButtons } from '@/components/charts/chart-export-buttons';
-
-import { Grafico2Response, Grafico2Filtros } from '../types/grafico-2.types';
+import type { Grafico2Response, Grafico2Filtros } from '../types/grafico-2.types';
 import {
   CategoriaG2,
   LABEL_CATEGORIA_G2,
+  TipoFallaFiltro,
 } from '@/lib/types/enums/fallas.enum';
-
-export type { Grafico2Response, Grafico2Filtros };
+import {
+  LABEL_NIVEL,
+  LABEL_VIA_FALLAS,
+  ModoG2,
+  TipoViaFiltroFallas,
+} from '@/lib/types/enums/fallas-graficos.enum';
 
 interface Props {
   data: Grafico2Response | null;
+  config: Grafico2Filtros;
   isLoading: boolean;
   height?: number;
 }
 
-// Paleta de colores para las rebanadas
-const COLORES_DONUT = [
-  '#0284c7', // azul
-  '#e11d48', // rojo
-  '#16a34a', // verde
-  '#d97706', // naranja
-  '#8b5cf6', // morado
-  '#ec4899', // rosa
-  '#14b8a6', // teal
-  '#f43f5e', // coral
-];
-
-// Diccionarios locales pequeños (estos sí son cerrados, no crecen)
 const LABEL_TIPO_FALLA: Record<string, string> = {
   RIEL: 'Solo Riel',
   SOLDADURA: 'Solo Soldadura',
   AMBAS: 'Riel + Soldadura',
 };
 
-const LABEL_TIPO_VIA: Record<string, string> = {
-  PAR: 'Solo Vía Par',
-  IMPAR: 'Solo Vía Impar',
-  AMBAS: 'Ambas Vías',
-};
+/** Ancho de columna en % según cantidad de categorías. */
+function calcularColumnWidth(cantidadCategorias: number): string {
+  if (cantidadCategorias <= 1) return '25%';
+  if (cantidadCategorias <= 3) return '40%';
+  if (cantidadCategorias <= 7) return '55%';
+  return '70%';
+}
 
 export function Grafico2Distribucion({
   data,
+  config,
   isLoading,
-  height = 400,
+  height = 420,
 }: Props) {
   const chartRef = useRef<HTMLDivElement>(null);
-  const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartInstanceRef = useRef<ApexCharts | null>(null);
 
-  const hasData = !!data?.barras?.length;
+  // Estado del zoom: nivel actual (1 = sin zoom). Cada zoom in multiplica
+  // por 0.7 (mostramos 70% del rango anterior), cada zoom out divide.
+  const [zoomRange, setZoomRange] = useState<{ min: number; max: number } | null>(null);
 
-  // ============================================================
-  // EXPORTACIONES
-  // ============================================================
-  const filename = `grafico-distribucion-${Date.now()}`;
+  const hasData =
+    !!data?.series?.length &&
+    data.series.some((s) => s.datos.some((n) => n > 0));
 
-  const handlePNG = () => exportPNG(chartInstanceRef.current, filename);
-  const handleSVG = () => exportSVG(chartContainerRef.current, filename);
-  const handleCSV = () => {
-    if (!data?.barras?.length) return;
-    exportCSV(
-      ['Categoría', 'Total de Fallas'],
-      data.barras.map((b) => [b.categoria, b.total]),
-      filename,
-    );
+  const modo = data?.metadata?.modo ?? config.modo ?? ModoG2.CATEGORIA;
+  const apilado = modo === ModoG2.ELEMENTO && (data?.series?.length ?? 0) > 1;
+
+  // ── Handlers de zoom (botones custom) ──────────────────────
+  const handleZoomIn = () => {
+    if (!chartInstanceRef.current || !data) return;
+    const total = data.categorias.length;
+    const range = zoomRange ?? { min: 0, max: total - 1 };
+    const newSize = Math.max(1, Math.floor((range.max - range.min) * 0.7));
+    const center = Math.floor((range.min + range.max) / 2);
+    const newMin = Math.max(0, center - Math.floor(newSize / 2));
+    const newMax = Math.min(total - 1, newMin + newSize);
+    setZoomRange({ min: newMin, max: newMax });
+    chartInstanceRef.current.zoomX(newMin, newMax);
   };
 
-  // ============================================================
-  // CHART (Donut con ApexCharts)
-  // ============================================================
+  const handleZoomOut = () => {
+    if (!chartInstanceRef.current || !data) return;
+    const total = data.categorias.length;
+    const range = zoomRange ?? { min: 0, max: total - 1 };
+    const newSize = Math.min(total - 1, Math.ceil((range.max - range.min) / 0.7));
+    const center = Math.floor((range.min + range.max) / 2);
+    const newMin = Math.max(0, center - Math.floor(newSize / 2));
+    const newMax = Math.min(total - 1, newMin + newSize);
+    if (newMin === 0 && newMax === total - 1) {
+      handleReset();
+      return;
+    }
+    setZoomRange({ min: newMin, max: newMax });
+    chartInstanceRef.current.zoomX(newMin, newMax);
+  };
+
+  const handleReset = () => {
+    if (!chartInstanceRef.current || !data) return;
+    setZoomRange(null);
+    chartInstanceRef.current.zoomX(0, data.categorias.length - 1);
+  };
+
   useEffect(() => {
     if (!chartRef.current) return;
-
     if (chartInstanceRef.current) {
       chartInstanceRef.current.destroy();
       chartInstanceRef.current = null;
     }
+    if (!hasData || !data) return;
 
-    if (!hasData) return;
+    // Resetear zoom local cuando cambian los datos
+    setZoomRange(null);
 
-    const series = data!.barras.map((b) => b.total);
-    const labels = data!.barras.map((b) => b.categoria);
-    const totalFallas = data!.metadata.totalFallas;
+    const total = data.metadata.totalFallas;
+    const columnWidth = calcularColumnWidth(data.categorias.length);
+    const filename = `grafico-distribucion-${Date.now()}`;
 
     const options: ApexCharts.ApexOptions = {
-      series,
-      labels,
+      series: data.series.map((s) => ({ name: s.nombre, data: s.datos })),
 
       chart: {
-        type: 'donut',
+        type: 'bar',
         height,
         width: '100%',
-        toolbar: { show: false },
+        stacked: apilado,
+        // Toolbar nativa: SOLO conservamos el menú de descarga (☰).
+        // El zoom +/-/reset lo manejamos con botones HTML arriba.
+        toolbar: {
+          show: true,
+          tools: {
+            download: true,
+            selection: false,
+            zoom: false,
+            zoomin: false,
+            zoomout: false,
+            pan: false,
+            reset: false,
+          },
+          export: {
+            csv: { filename, columnDelimiter: ',', headerCategory: 'Categoría' },
+            svg: { filename },
+            png: { filename },
+          },
+        },
+        zoom: {
+          enabled: true,
+          type: 'x',
+          autoScaleYaxis: true,
+        },
+        animations: { enabled: true, speed: 400 },
       },
 
-      colors: COLORES_DONUT,
+      colors: [
+        '#0284c7', '#16a34a', '#d97706', '#e11d48',
+        '#8b5cf6', '#14b8a6', '#ec4899', '#f59e0b',
+        '#06b6d4', '#a855f7', '#10b981', '#f43f5e',
+      ],
 
-      // ⭐ Donut con total en el centro
       plotOptions: {
-        pie: {
-          donut: {
-            size: '65%',
-            labels: {
-              show: true,
-              name: {
-                show: true,
-                fontSize: '14px',
-                color: '#64748b',
-                offsetY: -10,
-              },
-              value: {
-                show: true,
-                fontSize: '24px',
-                fontWeight: 'bold',
-                color: '#0f172a',
-                offsetY: 5,
-                formatter: (val: string) => `${val}`,
-              },
-              total: {
-                show: true,
-                showAlways: true,
-                label: 'Total de fallas',
-                fontSize: '14px',
-                color: '#64748b',
-                formatter: () => `${totalFallas}`,
-              },
-            },
+        bar: {
+          horizontal: false,
+          columnWidth,
+          borderRadius: 8,
+          borderRadiusApplication: 'end',
+          borderRadiusWhenStacked: 'last',
+          distributed: modo === ModoG2.CATEGORIA,
+          dataLabels: {
+            total: apilado
+              ? {
+                  enabled: true,
+                  style: { fontSize: '12px', fontWeight: 700, color: '#0f172a' },
+                  offsetY: -4,
+                }
+              : { enabled: false },
+            position: 'top',
           },
         },
       },
 
-      // 🚫 Etiquetas NO encima de rebanadas
       dataLabels: {
-        enabled: false,
+        enabled: true,
+        offsetY: apilado ? 0 : -22,
+        style: {
+          fontSize: '12px',
+          fontWeight: 700,
+          colors: apilado ? ['#ffffff'] : ['#0f172a'],
+        },
+        formatter: (val: number) => (val > 0 ? `${val}` : ''),
+      },
+
+      xaxis: {
+        categories: data.categorias,
+        labels: {
+          rotate: data.categorias.length > 8 ? -35 : 0,
+          style: { fontSize: '11.5px' },
+        },
+      },
+
+      yaxis: {
+        title: { text: 'Cantidad de Fallas', style: { fontWeight: 'bold', fontSize: '12px' } },
+        min: 0,
+        tickAmount: 5,
       },
 
       title: {
-        text: 'Distribución de Fallas por Categoría',
+        text:
+          modo === ModoG2.CATEGORIA
+            ? 'Distribución por Categoría'
+            : 'Distribución por Elemento',
         align: 'center',
         style: { fontSize: '16px', fontWeight: 'bold' },
       },
 
       subtitle: {
-        text: data ? getSubtitleText(data.configAplicada) : 'Sin datos',
+        text: getSubtitle(config, total),
         align: 'center',
+        style: { fontSize: '12px', color: '#64748b' },
       },
 
-      // ⭐ Tooltip al hover
       tooltip: {
-        enabled: true,
+        shared: false,
+        intersect: true,
         y: {
-          formatter: (value: number) => {
-            const porcentaje = totalFallas > 0
-              ? ((value / totalFallas) * 100).toFixed(1)
-              : '0';
-            return `${value} fallas (${porcentaje}%)`;
+          formatter: (v: number) => {
+            if (!total) return `${v} fallas`;
+            const pct = ((v / total) * 100).toFixed(1);
+            return `${v} fallas (${pct}%)`;
           },
         },
       },
 
       legend: {
-        position: 'bottom',
+        show: modo === ModoG2.ELEMENTO,
+        position: 'top',
         horizontalAlign: 'center',
-        fontSize: '13px',
-        formatter: (
-          seriesName: string,
-          opts?: {
-            seriesIndex: number;
-            w: {
-              globals: {
-                series: number[];
-              };
-            };
-          },
-        ) => {
-          const valor = opts?.w.globals.series[opts.seriesIndex] ?? 0;
-          return `${seriesName}: ${valor}`;
-        },
       },
 
-      noData: {
-        text: 'No hay datos con los filtros seleccionados',
-        align: 'center',
-        verticalAlign: 'middle',
-        style: { fontSize: '14px', color: '#666' },
+      grid: {
+        borderColor: '#e2e8f0',
+        strokeDashArray: 3,
+        yaxis: { lines: { show: true } },
       },
 
-      // Responsive: en pantallas chicas, ajustar tamaños
+      fill: { opacity: 1 },
+
       responsive: [
         {
           breakpoint: 640,
           options: {
-            chart: { height: 300 },
             legend: { position: 'bottom' },
+            plotOptions: { bar: { columnWidth: '70%' } },
+            dataLabels: { style: { fontSize: '10px' } },
           },
         },
       ],
+
+      noData: {
+        text: data?.metadata?.mensaje ?? 'No hay datos con los filtros seleccionados',
+        align: 'center',
+        verticalAlign: 'middle',
+        style: { fontSize: '14px', color: '#666' },
+      },
     };
 
     chartInstanceRef.current = new ApexCharts(chartRef.current, options);
@@ -235,54 +278,13 @@ export function Grafico2Distribucion({
       chartInstanceRef.current?.destroy();
       chartInstanceRef.current = null;
     };
-  }, [data, height, hasData]);
+  }, [data, height, hasData, modo, apilado, config]);
 
-  // ============================================================
-  // HELPERS
-  // ============================================================
-  const getSubtitleText = (config: Grafico2Filtros): string => {
-    const tipoFalla = config.tipoFalla ?? 'AMBAS';
-    const tipoVia = config.tipoVia ?? 'AMBAS';
-    const tramoIds = config.tramoIds ?? [];
-    const categoria = config.categoria ?? CategoriaG2.ACCION;
-    const fechaDesde = config.fechaDesde ?? '';
-    const fechaHasta = config.fechaHasta ?? '';
-
-    const tipoFallaText = LABEL_TIPO_FALLA[tipoFalla] ?? tipoFalla;
-    const tipoViaText = LABEL_TIPO_VIA[tipoVia] ?? tipoVia;
-
-    // FASE 2.D — Usar LABEL_CATEGORIA_G2 importado (soporta las 11 categorías).
-    // El cast a CategoriaG2 es seguro porque el backend solo devuelve valores válidos.
-    const categoriaText =
-      LABEL_CATEGORIA_G2[categoria as CategoriaG2] ?? categoria;
-
-    const tramosText =
-      tramoIds.length === 0
-        ? 'Todos los tramos'
-        : `${tramoIds.length} tramo(s) seleccionado(s)`;
-
-    const fechaInicio = fechaDesde
-      ? new Date(fechaDesde).toLocaleDateString('es-PE')
-      : '—';
-    const fechaFin = fechaHasta
-      ? new Date(fechaHasta).toLocaleDateString('es-PE')
-      : '—';
-
-    return `${categoriaText} | ${tipoFallaText} | ${tipoViaText} | ${tramosText} | ${fechaInicio} - ${fechaFin}`;
-  };
-
-  // ============================================================
-  // RENDER
-  // ============================================================
   if (isLoading) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>Distribución de Fallas</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Skeleton className="h-[400px] w-full" />
-        </CardContent>
+        <CardHeader><CardTitle>Distribución de Fallas</CardTitle></CardHeader>
+        <CardContent><Skeleton className="h-[420px] w-full" /></CardContent>
       </Card>
     );
   }
@@ -290,19 +292,10 @@ export function Grafico2Distribucion({
   if (!hasData) {
     return (
       <Card>
-        <CardHeader className="pb-2">
-          <div className="flex justify-between items-center flex-wrap gap-2">
-            <CardTitle>Distribución de Fallas</CardTitle>
-            <ChartExportButtons
-              onPNG={handlePNG}
-              onSVG={handleSVG}
-              onCSV={handleCSV}
-            />
-          </div>
-        </CardHeader>
+        <CardHeader className="pb-2"><CardTitle>Distribución de Fallas</CardTitle></CardHeader>
         <CardContent>
-          <div className="flex items-center justify-center h-[400px] text-muted-foreground">
-            No hay datos con los filtros seleccionados
+          <div className="flex items-center justify-center h-[420px] text-muted-foreground text-center px-4">
+            {data?.metadata?.mensaje ?? 'No hay datos con los filtros seleccionados'}
           </div>
         </CardContent>
       </Card>
@@ -314,18 +307,102 @@ export function Grafico2Distribucion({
       <CardHeader className="pb-2">
         <div className="flex justify-between items-center flex-wrap gap-2">
           <CardTitle>Distribución de Fallas</CardTitle>
-          <ChartExportButtons
-            onPNG={handlePNG}
-            onSVG={handleSVG}
-            onCSV={handleCSV}
+          {/* Botones custom de zoom — VISIBLES siempre */}
+          <ChartToolbar
+            onZoomIn={handleZoomIn}
+            onZoomOut={handleZoomOut}
+            onReset={handleReset}
+            hasZoom={zoomRange !== null}
           />
         </div>
       </CardHeader>
       <CardContent>
-        <div ref={chartContainerRef}>
-          <div ref={chartRef} />
-        </div>
+        <div ref={chartRef} />
       </CardContent>
     </Card>
   );
+}
+
+// ─────────────────────────────────────────────────────────────
+// COMPONENTE: barra de herramientas del gráfico
+// ─────────────────────────────────────────────────────────────
+
+interface ChartToolbarProps {
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onReset: () => void;
+  hasZoom: boolean;
+}
+
+export function ChartToolbar({
+  onZoomIn,
+  onZoomOut,
+  onReset,
+  hasZoom,
+}: ChartToolbarProps) {
+  return (
+    <div className="flex items-center gap-1 rounded-md border border-border bg-card px-1 py-0.5">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-7 w-7 p-0"
+        onClick={onZoomIn}
+        title="Acercar"
+      >
+        <ZoomIn className="h-3.5 w-3.5" />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-7 w-7 p-0"
+        onClick={onZoomOut}
+        title="Alejar"
+      >
+        <ZoomOut className="h-3.5 w-3.5" />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-7 w-7 p-0"
+        onClick={onReset}
+        disabled={!hasZoom}
+        title="Restablecer vista"
+      >
+        <RotateCcw className="h-3.5 w-3.5" />
+      </Button>
+      <div className="ml-1 px-2 text-[10px] text-muted-foreground hidden sm:flex items-center gap-1">
+        <MoveHorizontal className="h-3 w-3" />
+        Arrastra el gráfico para mover
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// SUBTÍTULO
+// ─────────────────────────────────────────────────────────────
+
+function getSubtitle(config: Grafico2Filtros, total: number): string {
+  if (!config.nivel) return 'Configura los filtros';
+
+  const nivelText = LABEL_NIVEL[config.nivel];
+  const viaText = LABEL_VIA_FALLAS[config.tipoVia ?? TipoViaFiltroFallas.TODAS];
+  const tfText = LABEL_TIPO_FALLA[config.tipoFalla ?? TipoFallaFiltro.AMBAS];
+  const catText = config.categoria
+    ? LABEL_CATEGORIA_G2[config.categoria as CategoriaG2]
+    : '—';
+  const elementos = config.elementoIds?.length ?? 0;
+  const elText = elementos === 0 ? 'sin selección' : `${elementos} elemento(s)`;
+
+  const fIni = config.fechaDesde
+    ? new Date(config.fechaDesde).toLocaleDateString('es-PE')
+    : '—';
+  const fFin = config.fechaHasta
+    ? new Date(config.fechaHasta).toLocaleDateString('es-PE')
+    : '—';
+
+  return `${nivelText} | ${viaText} | ${tfText} | ${catText} | ${elText} | ${fIni} – ${fFin} | Total: ${total}`;
 }

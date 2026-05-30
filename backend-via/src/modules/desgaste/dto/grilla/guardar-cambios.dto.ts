@@ -13,7 +13,6 @@ import { Type } from 'class-transformer';
 import { PuntoW } from '../../../../common/enums';
 import {
   ANIO_MINIMO,
-  TRIMESTRES_VALIDOS,
 } from '../../../../common/constants/desgaste.constants';
 
 export class CeldaModificadaDto {
@@ -36,7 +35,7 @@ export class CeldaModificadaDto {
 
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
+  @Min(-50)
   @Max(50)
   valor!: number | null;
 }

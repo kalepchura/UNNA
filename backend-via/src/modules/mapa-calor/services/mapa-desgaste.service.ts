@@ -40,6 +40,9 @@ export class MapaDesgasteService {
     data: null,
     expira: 0,
   };
+  /** Cache del ID del escenario REAL para no buscarlo en cada request. */
+  private idEscenarioReal: number | null = null;
+
   private readonly TTL_MS = 5 * 60 * 1000;
 
   constructor(
@@ -49,10 +52,15 @@ export class MapaDesgasteService {
     private readonly elementosRepo: Repository<ElementoDesgaste>,
   ) {}
 
+  // ----------------------------------------------------------
+  // MODO GENERAL
+  // ----------------------------------------------------------
+
   async calcularModoGeneral(
     request: MapaDesgasteGeneralRequestDto,
   ): Promise<MapaDesgasteGeneralResponseDto> {
-    const escenarioId = request.escenarioId ?? 1; // ID del escenario REAL
+    // Si no se especifica escenario, usar el REAL resuelto por nombre
+    const escenarioId = request.escenarioId ?? await this.resolverIdEscenarioReal();
     const puntoW = request.puntoW ?? PuntoW.W1;
     const fechaCorte = request.fechaCorte ?? this.hoyIso();
 
@@ -116,11 +124,17 @@ export class MapaDesgasteService {
     return respuesta;
   }
 
+  // ----------------------------------------------------------
+  // MODO ÍNDICE
+  // ----------------------------------------------------------
+
   async calcularModoPorIndice(
     request: MapaDesgasteIndiceRequestDto,
   ): Promise<MapaDesgasteIndiceResponseDto> {
-    const escenarioIdA = request.escenarioIdA ?? 1;
-    const escenarioIdB = request.escenarioIdB ?? 1;
+    // Si no se especifica escenario, usar el REAL resuelto por nombre
+    const idReal = await this.resolverIdEscenarioReal();
+    const escenarioIdA = request.escenarioIdA ?? idReal;
+    const escenarioIdB = request.escenarioIdB ?? idReal;
     const puntoWA = request.puntoWA ?? PuntoW.W1;
     const puntoWB = request.puntoWB ?? PuntoW.W2;
     const fechaCorte = request.fechaCorte ?? this.hoyIso();
@@ -212,13 +226,50 @@ export class MapaDesgasteService {
     return respuesta;
   }
 
+  // ----------------------------------------------------------
+  // RESOLVER ID DEL ESCENARIO REAL (por nombre, no por ID fijo)
+  // ----------------------------------------------------------
+
+  /**
+   * Busca el escenario con nombre = ESCENARIO_REAL_NOMBRE ('REAL').
+   * Cachea el resultado en memoria para no hacer la query en cada request.
+   * Lanza BadRequestException si no existe — el sistema requiere el escenario REAL.
+   */
+  private async resolverIdEscenarioReal(): Promise<number> {
+    if (this.idEscenarioReal !== null) return this.idEscenarioReal;
+
+    const escenario = await this.escenariosRepo.buscarPorNombre(ESCENARIO_REAL_NOMBRE);
+    if (!escenario || escenario.eliminado) {
+      throw new BadRequestException(
+        `El escenario '${ESCENARIO_REAL_NOMBRE}' no existe o está eliminado. ` +
+        `Es requerido para el mapa de calor de desgaste.`,
+      );
+    }
+
+    this.idEscenarioReal = escenario.id;
+    return escenario.id;
+  }
+
+  /** Llamar cuando se modifica el escenario REAL (renombre, restauración). */
+  invalidarCacheEscenarioReal(): void {
+    this.idEscenarioReal = null;
+    this.cacheGeneral = { data: null, expira: 0 };
+    this.cacheIndice  = { data: null, expira: 0 };
+  }
+
+  // ----------------------------------------------------------
+  // HELPERS PRIVADOS
+  // ----------------------------------------------------------
+
   private async validarEscenario(escenarioId: number): Promise<void> {
     const esc = await this.escenariosRepo.buscarPorId(escenarioId);
     if (!esc) {
       throw new NotFoundException(`Escenario con ID ${escenarioId} no encontrado`);
     }
     if (esc.eliminado) {
-      throw new BadRequestException(`Escenario con ID ${escenarioId} está eliminado y no se puede usar`);
+      throw new BadRequestException(
+        `Escenario con ID ${escenarioId} está eliminado y no se puede usar`,
+      );
     }
   }
 
@@ -288,10 +339,10 @@ export class MapaDesgasteService {
 
   private definicionLineas() {
     return [
-      { via: 'PAR', riel: 'IZQUIERDA', etiqueta: 'Vía PAR — Carril Izquierdo' },
-      { via: 'PAR', riel: 'DERECHA', etiqueta: 'Vía PAR — Carril Derecho' },
-      { via: 'IMPAR', riel: 'IZQUIERDA', etiqueta: 'Vía IMPAR — Carril Izquierdo' },
-      { via: 'IMPAR', riel: 'DERECHA', etiqueta: 'Vía IMPAR — Carril Derecho' },
+      { via: 'PAR',   riel: 'IZQUIERDA', etiqueta: 'Via PAR - Carril Izquierdo' },
+      { via: 'PAR',   riel: 'DERECHA',   etiqueta: 'Via PAR - Carril Derecho' },
+      { via: 'IMPAR', riel: 'IZQUIERDA', etiqueta: 'Via IMPAR - Carril Izquierdo' },
+      { via: 'IMPAR', riel: 'DERECHA',   etiqueta: 'Via IMPAR - Carril Derecho' },
     ];
   }
 
@@ -311,8 +362,8 @@ export class MapaDesgasteService {
 
   private puntoToColumn(p: PuntoW): 'w1' | 'w2' | 'w3r' | 'w3l' {
     switch (p) {
-      case PuntoW.W1: return 'w1';
-      case PuntoW.W2: return 'w2';
+      case PuntoW.W1:  return 'w1';
+      case PuntoW.W2:  return 'w2';
       case PuntoW.W3R: return 'w3r';
       case PuntoW.W3L: return 'w3l';
       default:

@@ -57,7 +57,7 @@ export function useCrearFallaSoldadura() {
   const invalidar = useInvalidarFallas();
   return useApiMutation<FallaSoldaduraInox, CrearFallaSoldaduraDto>({
     mutationFn: (dto) => fallasApi.soldadura.crear(dto),
-    mensajeExito: 'Falla de soldadura creada correctamente',
+    mensajeExito: ' creada correctamente',
     onSuccess: () => invalidar(),
   });
 }

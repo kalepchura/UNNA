@@ -1,54 +1,21 @@
-// frontend/src/components/shared/filters-toolbar.tsx
-//
-// Wrapper canónico para CUALQUIER barra de filtros (listados o análisis).
-//
-// Provee header con título + contador de activos + "Limpiar todo",
-// grid responsive para campos, y footer opcional con acciones.
-//
-// Usage:
-//   <FiltersToolbar
-//     activeCount={3}
-//     onClear={limpiar}
-//     primaryAction={
-//       <Button onClick={onAplicar}>Aplicar filtros</Button>
-//     }
-//   >
-//     <FiltersGrid columns={4}>
-//       <FilterField label="Vía">
-//         <Select ... />
-//       </FilterField>
-//       ...
-//     </FiltersGrid>
-//   </FiltersToolbar>
-
 import { useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronUp, SlidersHorizontal, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-// ── FiltersToolbar (top-level wrapper) ───────────────────────────────────────
+// ── FiltersToolbar ───────────────────────────────────────────────────────────
 
 interface FiltersToolbarProps {
-  /** Children (típicamente <FiltersGrid>...</FiltersGrid>). */
   children: ReactNode;
-  /** Acción primaria — botón de aplicar/buscar. Si se omite, el filtro se considera "auto-apply". */
   primaryAction?: ReactNode;
-  /** Acción secundaria — usualmente "Limpiar filtros". */
   secondaryAction?: ReactNode;
-  /** Callback para limpiar TODOS los filtros — habilita el link "Limpiar todo" del header. */
   onClear?: () => void;
-  /** Número de filtros activos (con valor). Se muestra como badge. */
   activeCount?: number;
-  /** Título del bloque. Default: "Filtros". */
   title?: string;
-  /** Descripción opcional bajo el título. */
   description?: string;
-  /** Si true, muestra botón colapsar/expandir. */
   collapsible?: boolean;
-  /** Estado inicial colapsado (solo aplica si collapsible). */
   defaultCollapsed?: boolean;
-  /** Variante visual. Default: 'default' (con borde). 'flush' (sin borde, para usar dentro de otra card). */
   variant?: 'default' | 'flush';
   className?: string;
 }
@@ -77,7 +44,6 @@ export function FiltersToolbar({
         className,
       )}
     >
-      {/* HEADER */}
       <header
         className={cn(
           'flex items-start justify-between gap-3',
@@ -93,13 +59,7 @@ export function FiltersToolbar({
             <div className="flex items-center gap-2">
               <h3 className="text-[13px] font-semibold text-foreground">{title}</h3>
               {hasActive && (
-                <span
-                  className="
-                    inline-flex h-5 min-w-[20px] items-center justify-center
-                    rounded-full bg-brand-soft px-1.5 text-[11px] font-semibold
-                    tabular-nums text-brand-soft-foreground
-                  "
-                >
+                <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-brand-soft px-1.5 text-[11px] font-semibold tabular-nums text-brand-soft-foreground">
                   {activeCount}
                 </span>
               )}
@@ -115,11 +75,7 @@ export function FiltersToolbar({
             <button
               type="button"
               onClick={onClear}
-              className="
-                inline-flex items-center gap-1 rounded-md px-2 py-1
-                text-xs font-medium text-muted-foreground transition-colors
-                hover:bg-muted hover:text-foreground
-              "
+              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <X className="h-3 w-3" />
               Limpiar todo
@@ -142,11 +98,9 @@ export function FiltersToolbar({
         </div>
       </header>
 
-      {/* BODY */}
       {!collapsed && (
         <>
           <div className="px-5 py-4">{children}</div>
-
           {(primaryAction || secondaryAction) && (
             <footer className="flex items-center justify-end gap-2 border-t border-border bg-muted/30 px-5 py-3">
               {secondaryAction}
@@ -162,17 +116,12 @@ export function FiltersToolbar({
 // ── FiltersGrid ──────────────────────────────────────────────────────────────
 
 interface FiltersGridProps {
-  /** Número de columnas en desktop. Default: 4. */
   columns?: 1 | 2 | 3 | 4 | 5 | 6;
   children: ReactNode;
   className?: string;
 }
 
-export function FiltersGrid({
-  columns = 4,
-  children,
-  className,
-}: FiltersGridProps) {
+export function FiltersGrid({ columns = 4, children, className }: FiltersGridProps) {
   const cols: Record<number, string> = {
     1: 'grid-cols-1',
     2: 'grid-cols-1 sm:grid-cols-2',
@@ -191,17 +140,17 @@ export function FiltersGrid({
 // ── FilterField ──────────────────────────────────────────────────────────────
 
 interface FilterFieldProps {
-  /** Etiqueta del campo. */
   label: string;
-  /** Para hacer el label clickeable, pasa el id del control. */
   htmlFor?: string;
-  /** Control de entrada (Select, Input, MultiSelect, etc.). */
   children: ReactNode;
-  /** Texto auxiliar bajo el control. */
   helper?: ReactNode;
-  /** Si el campo ocupa más columnas en el grid. */
   span?: 1 | 2 | 3 | 4 | 5 | 6;
   className?: string;
+  /**
+   * Mensaje de error. Si se proporciona, muestra el texto en rojo
+   * bajo el control (reemplaza al helper cuando hay error).
+   */
+  error?: string;
 }
 
 export function FilterField({
@@ -211,6 +160,7 @@ export function FilterField({
   helper,
   span,
   className,
+  error,
 }: FilterFieldProps) {
   const spanClass: Record<number, string> = {
     1: '',
@@ -224,21 +174,26 @@ export function FilterField({
     <div className={cn('space-y-1.5', span && spanClass[span], className)}>
       <label
         htmlFor={htmlFor}
-        className="block text-[11.5px] font-semibold uppercase tracking-[0.04em] text-muted-foreground"
+        className={cn(
+          'block text-[11.5px] font-semibold uppercase tracking-[0.04em]',
+          // Label en rojo cuando hay error
+          error ? 'text-red-500' : 'text-muted-foreground',
+        )}
       >
         {label}
       </label>
       {children}
-      {helper && (
+      {/* Error tiene prioridad sobre helper */}
+      {error ? (
+        <p className="text-xs text-red-500">{error}</p>
+      ) : helper ? (
         <p className="text-xs text-muted-foreground">{helper}</p>
-      )}
+      ) : null}
     </div>
   );
 }
 
-// ── DateInput (styled token-aware) ───────────────────────────────────────────
-// Replacement for raw `<input type="date">` that ignores tokens.
-// Use inside FilterField.
+// ── DateInput ────────────────────────────────────────────────────────────────
 
 interface DateInputProps
   extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'> {}

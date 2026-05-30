@@ -27,11 +27,13 @@ export const MAPA_TEMPERATURA = {
 // CAPA DESGASTE — MODO GENERAL (mm)
 // ------------------------------------------------------------
 export const MAPA_DESGASTE_GENERAL = {
-  /** Verde: < 2 mm. */
-  UMBRAL_VERDE_MAX: 2,
-  /** Amarillo: 2 a 3.4 mm. */
-  UMBRAL_AMARILLO_MAX: 3.4,
-  // Rojo: >= 3.5 mm
+  /** Verde: < 6.5 mm. */
+  UMBRAL_VERDE_MAX: 6.5,
+
+  /** Amarillo: 6.5 a 8 mm. */
+  UMBRAL_AMARILLO_MAX: 8,
+
+  // Rojo: > 8 mm
 } as const;
 
 // ------------------------------------------------------------

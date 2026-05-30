@@ -1,230 +1,202 @@
+// backend/src/modules/fallas/services/grafico-1-fallas.service.ts
+
 import { Injectable } from '@nestjs/common';
-import { FallasAnalyticsRepository, FiltrosAnaliticosRiel } from '../repositories/fallas-analytics.repository';
+import { FallasAnalyticsRepository } from '../repositories/fallas-analytics.repository';
 import { Grafico1RequestDto } from '../dto/graficos/grafico-1/grafico-1-request.dto';
 import {
   Grafico1ResponseDto,
   Grafico1SerieDto,
 } from '../dto/graficos/grafico-1/grafico-1-response.dto';
 import { Grafico1ConfigDto } from '../dto/graficos/grafico-1/grafico-1-config.dto';
+import { GranularidadTemporal } from '../../../common/enums';
 import {
-  GranularidadTemporal,
-  TipoFallaFiltro,
-  TipoViaFiltro,
-} from '../../../common/enums';
+  validarConfigBase,
+  resolverTipoFalla,
+  resolverViaFiltro,
+  columnasPorNivel,
+} from '../helpers/graficos.helper';
 
 const MESES_ABREV = [
-  'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
-  'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic',
+  'Ene','Feb','Mar','Abr','May','Jun',
+  'Jul','Ago','Sep','Oct','Nov','Dic',
 ];
 
-// Configuración BASE del sistema (compartida entre todos los usuarios)
-const CONFIG_BASE_G1: Required<Grafico1ConfigDto> = {
-  granularidad: GranularidadTemporal.MENSUAL,
-  anio: new Date().getFullYear(),
-  anioInicio: 2020,
-  anioFin: new Date().getFullYear(),
-  tipoFalla: TipoFallaFiltro.AMBAS,
-  tipoVia: TipoViaFiltro.AMBAS,
-  tramoIds: [2, 4],
-  curvaHorizontalIds: [],
-  curvaVerticalIds: [],
-  // FASE 2.D — defaults vacíos
-  tipoDefectos: [],
-  elementosAfectados: [],
-  zonasAfectadas: [],
-  perfiles: [],
-  estadosActuales: [],
-};
-
+/**
+ * ============================================================
+ * G1 — Evolución temporal
+ * ============================================================
+ * Sin defaults. Sin caché. Sin merge.
+ * Recibe → valida → ejecuta UNA query por nivel → responde.
+ * Si la config no es válida, responde gráfico vacío con mensaje.
+ * ============================================================
+ */
 @Injectable()
 export class Grafico1FallasService {
-  private cacheBase: { data: Grafico1ResponseDto | null; expira: number } = {
-    data: null,
-    expira: 0,
-  };
-  private readonly TTL_MS = 5 * 60 * 1000;
-
   constructor(private readonly analyticsRepo: FallasAnalyticsRepository) {}
 
   async calcular(request: Grafico1RequestDto): Promise<Grafico1ResponseDto> {
-    const configLimpia = limpiarUndefined(request.config ?? {});
+    const config = request.config;
 
-    const config = {
-      ...CONFIG_BASE_G1,
-      ...configLimpia,
-    };
-
-    const esConfigBase = this.esConfiguracionBase(config);
-
-    if (esConfigBase) {
-      const ahora = Date.now();
-      if (this.cacheBase.data && this.cacheBase.expira > ahora) {
-        return this.cacheBase.data;
-      }
-
-      const result = await this.calcularDesdeBD(config);
-      this.cacheBase = { data: result, expira: ahora + this.TTL_MS };
-      return result;
+    // 1) ¿Llegó config?
+    if (!config) {
+      return this.respuestaVacia([], 'Configura los filtros y pulsa Aplicar.');
     }
 
+    // 2) Validar campos base (nivel, elementos, vía vs nivel, tipoFalla vs nivel).
+    const v = validarConfigBase(config);
+    if (!v.ok) {
+      return this.respuestaVacia(this.construirCategorias(config), v.mensaje, config.nivel);
+    }
+
+    // 3) Validar campos temporales específicos de G1.
+    const errTemp = this.validarTemporal(config);
+    if (errTemp) {
+      return this.respuestaVacia(this.construirCategorias(config), errTemp, config.nivel);
+    }
+
+    // 4) Ejecutar.
     return this.calcularDesdeBD(config);
   }
 
-  invalidarCacheBase(): void {
-    this.cacheBase = { data: null, expira: 0 };
+  // ----------------------------------------------------------
+  // Validación temporal específica
+  // ----------------------------------------------------------
+  private validarTemporal(config: Grafico1ConfigDto): string | null {
+    if (config.granularidad === GranularidadTemporal.MENSUAL) {
+      if (!Number.isInteger(config.anio)) {
+        return 'Para granularidad MENSUAL, especifica un año.';
+      }
+    } else {
+      if (!Number.isInteger(config.anioInicio) || !Number.isInteger(config.anioFin)) {
+        return 'Para granularidad ANUAL, especifica año inicio y año fin.';
+      }
+      if ((config.anioInicio as number) > (config.anioFin as number)) {
+        return 'El año inicio no puede ser mayor que el año fin.';
+      }
+    }
+    return null;
   }
 
-  private esConfiguracionBase(config: Required<Grafico1ConfigDto>): boolean {
-    return (
-      config.granularidad === CONFIG_BASE_G1.granularidad &&
-      config.anio === CONFIG_BASE_G1.anio &&
-      config.anioInicio === CONFIG_BASE_G1.anioInicio &&
-      config.anioFin === CONFIG_BASE_G1.anioFin &&
-      config.tipoFalla === CONFIG_BASE_G1.tipoFalla &&
-      config.tipoVia === CONFIG_BASE_G1.tipoVia &&
-      JSON.stringify(config.tramoIds) === JSON.stringify(CONFIG_BASE_G1.tramoIds) &&
-      JSON.stringify(config.curvaHorizontalIds) === JSON.stringify(CONFIG_BASE_G1.curvaHorizontalIds) &&
-      JSON.stringify(config.curvaVerticalIds) === JSON.stringify(CONFIG_BASE_G1.curvaVerticalIds) &&
-      JSON.stringify(config.tipoDefectos) === JSON.stringify(CONFIG_BASE_G1.tipoDefectos) &&
-      JSON.stringify(config.elementosAfectados) === JSON.stringify(CONFIG_BASE_G1.elementosAfectados) &&
-      JSON.stringify(config.zonasAfectadas) === JSON.stringify(CONFIG_BASE_G1.zonasAfectadas) &&
-      JSON.stringify(config.perfiles) === JSON.stringify(CONFIG_BASE_G1.perfiles) &&
-      JSON.stringify(config.estadosActuales) === JSON.stringify(CONFIG_BASE_G1.estadosActuales)
-    );
-  }
-
-  private async calcularDesdeBD(config: Required<Grafico1ConfigDto>): Promise<Grafico1ResponseDto> {
+  // ----------------------------------------------------------
+  // Cálculo principal
+  // ----------------------------------------------------------
+  private async calcularDesdeBD(
+    config: Grafico1ConfigDto,
+  ): Promise<Grafico1ResponseDto> {
     const { fechaDesde, fechaHasta } = this.calcularRango(config);
+    const categorias = this.construirCategorias(config);
+    const cantCategorias = categorias.length;
 
-    const incluirRiel =
-      config.tipoFalla === TipoFallaFiltro.RIEL ||
-      config.tipoFalla === TipoFallaFiltro.AMBAS;
-    const incluirSoldadura =
-      config.tipoFalla === TipoFallaFiltro.SOLDADURA ||
-      config.tipoFalla === TipoFallaFiltro.AMBAS;
+    const { incluirRiel, incluirSoldadura } = resolverTipoFalla(config.nivel, config.tipoFalla);
+    const viaFiltro = resolverViaFiltro(config.tipoVia);
+    const cols = columnasPorNivel(config.nivel);
 
-    const viaFiltro = config.tipoVia === TipoViaFiltro.AMBAS ? null : config.tipoVia;
+    // Si por el nivel no hay tablas que aportan (caso imposible tras validación,
+    // pero defensivo) → vacío.
+    if (!incluirRiel && !incluirSoldadura) {
+      return this.respuestaVacia(categorias, 'Sin tablas que aporten datos a este nivel.', config.nivel);
+    }
 
-    // FASE 2.D — armar objeto de filtros solo-riel
-    const filtrosRiel: FiltrosAnaliticosRiel = {
-      curvaHorizontalIds: config.curvaHorizontalIds,
-      curvaVerticalIds: config.curvaVerticalIds,
-      tipoDefectos: config.tipoDefectos,
-      elementosAfectados: config.elementosAfectados,
-      zonasAfectadas: config.zonasAfectadas,
-      perfiles: config.perfiles,
-      estadosActuales: config.estadosActuales,
-    };
-
-    const filas = await this.analyticsRepo.fallasPorTramoYPeriodo(
-      config.granularidad,
+    const filas = await this.analyticsRepo.fallasG1({
+      granularidad: config.granularidad,
       fechaDesde,
       fechaHasta,
       incluirRiel,
       incluirSoldadura,
       viaFiltro,
-      config.tramoIds,
-      filtrosRiel,
+      elementoIds: config.elementoIds,
+      cols,
+    });
+
+    // Armar series: una por elementoId.
+    const series = this.armarSeries(filas, config, cantCategorias);
+    const totalFallas = series.reduce(
+      (acc, s) => acc + s.datos.reduce((sum, n) => sum + n, 0),
+      0,
     );
 
-    const categorias = this.construirCategorias(config);
-    const series = this.construirSeries(filas, config, categorias.length);
-    const totalFallas = filas.reduce((acc, f) => acc + f.total, 0);
-
     return {
-      configAplicada: config,
       categorias,
       series,
-      metadata: {
-        totalFallas,
-        calculadoEn: new Date(),
-      },
+      metadata: { totalFallas, calculadoEn: new Date(), nivel: config.nivel },
     };
   }
 
-  private calcularRango(config: Required<Grafico1ConfigDto>): { fechaDesde: Date; fechaHasta: Date } {
-    const anio = Number.isInteger(config.anio)
-      ? config.anio
-      : new Date().getFullYear();
+  // ----------------------------------------------------------
+  // Helpers privados
+  // ----------------------------------------------------------
+  private respuestaVacia(
+    categorias: string[],
+    mensaje: string,
+    nivel?: Grafico1ConfigDto['nivel'],
+  ): Grafico1ResponseDto {
+    return {
+      categorias,
+      series: [],
+      metadata: { totalFallas: 0, calculadoEn: new Date(), nivel, mensaje },
+    };
+  }
 
-    const anioInicio = Number.isInteger(config.anioInicio)
-      ? config.anioInicio
-      : 2020;
-
-    const anioFin = Number.isInteger(config.anioFin)
-      ? config.anioFin
-      : new Date().getFullYear();
-
+  private calcularRango(config: Grafico1ConfigDto): { fechaDesde: Date; fechaHasta: Date } {
     if (config.granularidad === GranularidadTemporal.MENSUAL) {
+      const anio = config.anio as number;
       return {
         fechaDesde: new Date(anio, 0, 1),
         fechaHasta: new Date(anio, 11, 31, 23, 59, 59),
       };
     }
     return {
-      fechaDesde: new Date(anioInicio, 0, 1),
-      fechaHasta: new Date(anioFin, 11, 31, 23, 59, 59),
+      fechaDesde: new Date(config.anioInicio as number, 0, 1),
+      fechaHasta: new Date(config.anioFin as number, 11, 31, 23, 59, 59),
     };
   }
 
-  private construirCategorias(config: Required<Grafico1ConfigDto>): string[] {
+  private construirCategorias(config: Grafico1ConfigDto): string[] {
+    if (!config.granularidad) return [];
     if (config.granularidad === GranularidadTemporal.MENSUAL) {
       return [...MESES_ABREV];
     }
     const cats: string[] = [];
-    for (let a = config.anioInicio; a <= config.anioFin; a++) {
-      cats.push(String(a));
-    }
+    const inicio = config.anioInicio ?? new Date().getFullYear();
+    const fin    = config.anioFin    ?? new Date().getFullYear();
+    for (let a = inicio; a <= fin; a++) cats.push(String(a));
     return cats;
   }
 
-  private construirSeries(
-    filas: Array<{ tramoId: number; codigo: string; nombre: string; periodo: number; total: number }>,
-    config: Required<Grafico1ConfigDto>,
-    cantCategorias: number,
-  ): Grafico1SerieDto[] {
-    const seriesMap = new Map<number, { codigo: string; nombre: string; datos: number[] }>();
-
-    for (const fila of filas) {
-      if (!seriesMap.has(fila.tramoId)) {
-        seriesMap.set(fila.tramoId, {
-          codigo: fila.codigo,
-          nombre: fila.nombre,
-          datos: new Array(cantCategorias).fill(0),
-        });
-      }
-      const serie = seriesMap.get(fila.tramoId)!;
-      const indice = this.periodoAIndice(fila.periodo, config);
-      if (indice >= 0 && indice < cantCategorias) {
-        serie.datos[indice] = fila.total;
-      }
-    }
-
-    return Array.from(seriesMap.values()).map((s) => ({
-      nombre: s.nombre,
-      codigo: s.codigo,
-      datos: s.datos,
-    }));
-  }
-
-  private periodoAIndice(periodo: number, config: Required<Grafico1ConfigDto>): number {
+  private periodoAIndice(periodo: number, config: Grafico1ConfigDto): number {
     if (config.granularidad === GranularidadTemporal.MENSUAL) {
       return periodo - 1;
     }
-    return periodo - config.anioInicio;
+    return periodo - (config.anioInicio as number);
   }
-}
 
-// ============================================================
-// HELPERS LOCALES
-// ============================================================
+  private armarSeries(
+    filas: Array<{ elementoId: number; nombre: string; codigo: string; periodo: number; total: number }>,
+    config: Grafico1ConfigDto,
+    cantCategorias: number,
+  ): Grafico1SerieDto[] {
+    const seriesMap = new Map<number, Grafico1SerieDto>();
 
-function limpiarUndefined<T extends Record<string, any>>(obj: T): Partial<T> {
-  const result: Partial<T> = {};
-  for (const key in obj) {
-    if (obj[key] !== undefined) {
-      result[key] = obj[key];
+    for (const fila of filas) {
+      let serie = seriesMap.get(fila.elementoId);
+      if (!serie) {
+        serie = {
+          nombre: fila.nombre,
+          codigo: fila.codigo,
+          elementoId: fila.elementoId,
+          datos: new Array(cantCategorias).fill(0),
+        };
+        seriesMap.set(fila.elementoId, serie);
+      }
+      const idx = this.periodoAIndice(fila.periodo, config);
+      if (idx >= 0 && idx < cantCategorias) {
+        serie.datos[idx] = fila.total;
+      }
     }
+
+    // Solo devolvemos series con al menos un valor > 0.
+    return Array.from(seriesMap.values()).filter(
+      (s) => s.datos.some((n) => n > 0),
+    );
   }
-  return result;
 }

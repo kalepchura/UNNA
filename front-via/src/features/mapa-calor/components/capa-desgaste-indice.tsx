@@ -1,13 +1,8 @@
 /**
- * Capa Desgaste Índice — 4 carriles paralelos sin franja de fondo.
+ * Capa Desgaste Índice — 4 carriles paralelos con color fijo por vía+carril.
  *
- * Idéntica estructura a CapaDesgasteGeneral, pero el tooltip muestra
- * el índice A/B en lugar del valor en mm.
- *
- * CORRECCIÓN:
- * - tramoDeProgresiva recibe solo p.progresiva (punto fijo, sin extensión).
- *   No se pasa progresivaFin porque los puntos de índice son mediciones
- *   puntuales, no elementos con extensión.
+ * Idéntica estructura a CapaDesgasteGeneral pero muestra el índice A/B.
+ * Las líneas guía usan colorViaRiel (fijo), los puntos usan colorSemaforo.
  */
 
 import {
@@ -16,7 +11,7 @@ import {
   HoverCardTrigger,
 } from '@/components/ui/hover-card';
 
-import { colorSemaforo } from '../utils/colores';
+import { colorSemaforo, colorViaRiel } from '../utils/colores';
 import { TooltipPunto } from './tooltip-punto';
 import { fmtValor } from '../utils/formato';
 import type {
@@ -30,10 +25,7 @@ interface CapaDesgasteIndiceProps {
   utils: UtilsEsquema;
 }
 
-export function CapaDesgasteIndice({
-  lineas,
-  utils,
-}: CapaDesgasteIndiceProps) {
+export function CapaDesgasteIndice({ lineas, utils }: CapaDesgasteIndiceProps) {
   if (!lineas.length || lineas.every((l) => l.puntos.length === 0)) {
     return (
       <text
@@ -48,9 +40,7 @@ export function CapaDesgasteIndice({
     );
   }
 
-  const lineasOrdenadas = ordenarLineas(lineas).filter(
-    (l) => l.puntos.length > 0,
-  );
+  const lineasOrdenadas = ordenarLineas(lineas).filter((l) => l.puntos.length > 0);
   const totalCarriles = lineasOrdenadas.length;
   const offsets = calcularOffsets(totalCarriles);
 
@@ -64,11 +54,11 @@ export function CapaDesgasteIndice({
     riel: string;
     etiqueta: string;
   };
+
   const porTramo: Record<number, Record<number, Item[]>> = {};
 
   lineasOrdenadas.forEach((linea, carrilIdx) => {
     linea.puntos.forEach((p) => {
-      // Punto fijo: usar p.progresiva directamente, sin extensión.
       const t = utils.tramoDeProgresiva(p.progresiva);
       if (!porTramo[t]) porTramo[t] = {};
       if (!porTramo[t][carrilIdx]) porTramo[t][carrilIdx] = [];
@@ -90,21 +80,25 @@ export function CapaDesgasteIndice({
 
   return (
     <g>
-      {/* Solo carriles guía finos — SIN franja de fondo */}
+      {/* Líneas guía coloreadas por vía+carril */}
       {Array.from({ length: numTramos }).map((_, i) =>
-        offsets.map((off, k) => (
-          <path
-            key={`carril-${i}-${k}`}
-            d={utils.getPathTramo(i, off)}
-            stroke="#cbd5e1"
-            strokeWidth="1"
-            fill="none"
-            opacity="0.5"
-          />
-        )),
+        lineasOrdenadas.map((linea, k) => {
+          const color = colorViaRiel(linea.via, linea.riel);
+          const off = offsets[k];
+          return (
+            <path
+              key={`carril-${i}-${k}`}
+              d={utils.getPathTramo(i, off)}
+              stroke={color}
+              strokeWidth="1.5"
+              fill="none"
+              opacity="0.45"
+            />
+          );
+        }),
       )}
 
-      {/* Puntos */}
+      {/* Puntos (color semáforo) */}
       {Object.entries(porTramo).flatMap(([tStr, porCarril]) => {
         const t = +tStr;
         return Object.entries(porCarril).flatMap(([cStr, items]) => {
@@ -130,9 +124,7 @@ export function CapaDesgasteIndice({
                     opacity={tiene ? 1 : 0.45}
                     style={{
                       cursor: 'pointer',
-                      filter: tiene
-                        ? `drop-shadow(0 0 3px ${s.glow})`
-                        : 'none',
+                      filter: tiene ? `drop-shadow(0 0 3px ${s.glow})` : 'none',
                     }}
                   />
                 </HoverCardTrigger>
@@ -158,25 +150,14 @@ export function CapaDesgasteIndice({
   );
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function ordenarLineas(
-  lineas: LineaDesgasteIndice[],
-): LineaDesgasteIndice[] {
-  const ordenVia = (via: string) => {
-    if (via === 'PAR') return 0;
-    if (via === 'IMPAR') return 1;
-    if (via === 'TERCERA') return 2;
-    if (via === 'CERO') return 3;
-    return 4;
-  };
-  const ordenRiel = (riel: string) =>
-    riel.toUpperCase().includes('IZ') ? 0 : 1;
-
+function ordenarLineas(lineas: LineaDesgasteIndice[]): LineaDesgasteIndice[] {
+  const ordenVia  = (v: string) => ({ PAR: 0, IMPAR: 1, TERCERA: 2, CERO: 3 }[v] ?? 4);
+  const ordenRiel = (r: string) => r.toUpperCase().includes('IZ') ? 0 : 1;
   return [...lineas].sort((a, b) => {
     const dv = ordenVia(a.via) - ordenVia(b.via);
-    if (dv !== 0) return dv;
-    return ordenRiel(a.riel) - ordenRiel(b.riel);
+    return dv !== 0 ? dv : ordenRiel(a.riel) - ordenRiel(b.riel);
   });
 }
 
@@ -191,13 +172,11 @@ function calcularOffsets(total: number): number[] {
 function buildExtraIndice(p: PuntoColoreadoIndice): string | undefined {
   const partes: string[] = [];
   if (p.valorA != null) {
-    const q =
-      p.anioA && p.trimestreA ? ` (Q${p.trimestreA} ${p.anioA})` : '';
+    const q = p.anioA && p.trimestreA ? ` (Q${p.trimestreA} ${p.anioA})` : '';
     partes.push(`A: ${fmtValor(p.valorA, 'mm')}${q}`);
   }
   if (p.valorB != null) {
-    const q =
-      p.anioB && p.trimestreB ? ` (Q${p.trimestreB} ${p.anioB})` : '';
+    const q = p.anioB && p.trimestreB ? ` (Q${p.trimestreB} ${p.anioB})` : '';
     partes.push(`B: ${fmtValor(p.valorB, 'mm')}${q}`);
   }
   return partes.length > 0 ? partes.join(' · ') : undefined;

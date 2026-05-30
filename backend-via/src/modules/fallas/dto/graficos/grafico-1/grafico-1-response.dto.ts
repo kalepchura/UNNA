@@ -1,48 +1,48 @@
-import { Grafico1ConfigDto } from './grafico-1-config.dto';
+// backend/src/modules/fallas/dto/graficos/grafico-1/grafico-1-response.dto.ts
+
+import { NivelAnalisis } from '../../../enums/fallas-graficos.enums';
 
 /**
- * Una serie del gráfico = una línea = un tramo.
+ * Una serie del gráfico = una línea = un elemento del nivel.
  */
 export class Grafico1SerieDto {
-  /** Nombre legible del tramo (para mostrar en leyenda). */
+  /** Nombre legible para la leyenda. */
   nombre!: string;
-
-  /** Código del tramo (para identificar). */
+  /** Código corto (puede ser igual al nombre). */
   codigo!: string;
-
-  /**
-   * Valores numéricos en cada categoría del eje X.
-   * Tiene la misma longitud que `categorias` del response.
-   * Los meses/años sin fallas se rellenan con 0.
-   */
+  /** ID del elemento (tramo, curva o cambiavía). */
+  elementoId!: number;
+  /** Valores de cada categoría. Misma longitud que `categorias`. */
   datos!: number[];
 }
 
-/**
- * Metadatos del cálculo para mostrar/debug.
- */
 export class Grafico1MetadataDto {
   totalFallas!: number;
   calculadoEn!: Date;
+  /** Nivel efectivamente aplicado (útil al front para etiquetar). */
+  nivel?: NivelAnalisis;
+  /**
+   * Mensaje cuando la config no es válida y se devolvió vacío.
+   * Si la consulta corrió, queda undefined.
+   */
+  mensaje?: string;
 }
 
 /**
- * RESPONSE DTO del Gráfico 1.
+ * Response del Gráfico 1.
+ *
+ * NO devuelve `configAplicada`: el front ya tiene la config que envió.
+ * Solo devolvemos los datos para dibujar + metadata informativa.
  */
 export class Grafico1ResponseDto {
   /**
-   * Config efectivamente aplicada (default + lo que envió el cliente).
-   * Útil para que el frontend rellene los selects con la config usada.
-   */
-  configAplicada!: Required<Grafico1ConfigDto>;
-
-  /**
    * Etiquetas del eje X.
-   * Si MENSUAL: ['Ene','Feb',...,'Dic']
-   * Si ANUAL: ['2020','2021',...,'2026']
+   *  - MENSUAL: ['Ene','Feb',...,'Dic']
+   *  - ANUAL  : ['2020','2021',...,'2026']
    */
   categorias!: string[];
 
+  /** Una serie por elemento del nivel. Puede venir vacío. */
   series!: Grafico1SerieDto[];
 
   metadata!: Grafico1MetadataDto;

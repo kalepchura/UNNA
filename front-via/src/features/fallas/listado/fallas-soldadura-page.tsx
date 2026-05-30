@@ -76,7 +76,7 @@ export function FallasSoldaduraPage() {
 
   const sheetTitle =
     sheetState?.mode === 'create'
-      ? 'Nueva falla de soldadura'
+      ? 'Nueva falla de soldadura Inox'
       : sheetState?.mode === 'edit'
         ? `Editar falla #${sheetState.id}`
         : sheetState?.mode === 'view'

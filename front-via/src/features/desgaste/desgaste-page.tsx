@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 import { PageHeader } from '@/components/layout/page-header';
 import { ChartCard } from '@/components/shared/chart-card';
@@ -8,83 +8,61 @@ import {
 } from '@/components/shared/config-sheet';
 
 import { KpisDesgaste } from './components/kpis-desgaste';
-import { WizardDesgaste } from './components/wizard-desgaste';
-import { Grafico1DesgasteEvolucionReal } from './components/grafico-1-evolucion-real';
 import { FiltrosGrafico2Desgaste } from './components/grafico-2-filtros';
 import { Grafico2DesgasteCrecimientoTrafico } from './components/grafico-2-crecimiento-trafico';
-import { WizardDesgasteG3 } from './components/wizard-desgaste-g3';
+import { WizardDesgasteG3, crearBloquePorDefecto } from './components/wizard-desgaste-g3';
 import { Grafico3DesgasteProyeccion } from './components/grafico-3-proyeccion-desgaste';
 
-import type { Grafico1DesgasteFiltros } from './types/grafico-1.types';
 import type { Grafico2DesgasteFiltros } from './types/grafico-2.types';
-import type { Grafico3DesgasteFiltros } from './types/grafico-3.types';
+import type { Grafico3DesgasteRequest, WizardG3Block } from './types/grafico-3.types';
 
 import { queryKeys } from '@/lib/query-keys';
 import { useApiQuery } from '@/hooks/use-api-query';
 import { desgasteApi } from '@/lib/api/desgaste.api';
 
+// ─── Persistencia en sessionStorage ─────────────────────────────────────────
+
 const STORAGE_KEYS = {
-  GRAFICO1: 'desgaste_grafico1_config',
-  GRAFICO2: 'desgaste_grafico2_config',
-  GRAFICO3: 'desgaste_grafico3_config',
+  GRAFICO2:      'desgaste_grafico2_config',
+  GRAFICO3:      'desgaste_grafico3_config',
+  WIZARD_BLOQUES: 'desgaste_wizard_g3_bloques',
 };
 
-function leerConfig<T>(key: string): T {
+function leerConfig<T>(key: string): T | null {
   try {
     const saved = sessionStorage.getItem(key);
-    return saved ? JSON.parse(saved) : ({} as T);
+    return saved ? (JSON.parse(saved) as T) : null;
   } catch {
-    return {} as T;
+    return null;
   }
 }
 
-const TIPO_AGRUPACION_LABEL: Record<string, string> = {
-  TRAMO: 'Tramo',
-  CURVA_HORIZONTAL: 'Curva H',
-  CURVA_VERTICAL: 'Curva V',
-};
+function guardarConfig(key: string, value: unknown) {
+  try {
+    sessionStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // ignore
+  }
+}
+
+// ─── Página ──────────────────────────────────────────────────────────────────
 
 export function DesgastePage() {
-  // KPIs
+  // ── KPIs ──────────────────────────────────────────────────────────────────
   const { data: kpisData, isLoading: kpisLoading } = useApiQuery({
     queryKey: queryKeys.desgaste.kpis(),
     queryFn: () => desgasteApi.analytics.kpis(),
   });
 
-  // ─── GRÁFICO 1 ────────────────────────────────────────────────────────
-  const [grafico1ConfigAplicada, setGrafico1ConfigAplicada] =
-    useState<Grafico1DesgasteFiltros>(() => leerConfig(STORAGE_KEYS.GRAFICO1));
-
-  const { data: grafico1Data, isLoading: grafico1Loading } = useApiQuery({
-    queryKey: ['desgaste', 'grafico-1', grafico1ConfigAplicada],
-    queryFn: () => desgasteApi.analytics.grafico1(grafico1ConfigAplicada),
-    enabled: Object.keys(grafico1ConfigAplicada).length > 0,
-  });
-
-  useEffect(() => {
-    if (
-      grafico1Data?.configAplicada &&
-      Object.keys(grafico1ConfigAplicada).length === 0
-    ) {
-      setGrafico1ConfigAplicada(grafico1Data.configAplicada);
-      sessionStorage.setItem(
-        STORAGE_KEYS.GRAFICO1,
-        JSON.stringify(grafico1Data.configAplicada),
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [grafico1Data]);
-
-  const handleAplicarGrafico1 = (config: Grafico1DesgasteFiltros) => {
-    setGrafico1ConfigAplicada(config);
-    sessionStorage.setItem(STORAGE_KEYS.GRAFICO1, JSON.stringify(config));
-  };
-
-  // ─── GRÁFICO 2 ────────────────────────────────────────────────────────
+  // ── Gráfico 2 ─────────────────────────────────────────────────────────────
   const [grafico2Config, setGrafico2Config] =
-    useState<Grafico2DesgasteFiltros>(() => leerConfig(STORAGE_KEYS.GRAFICO2));
+    useState<Grafico2DesgasteFiltros>(
+      () => leerConfig<Grafico2DesgasteFiltros>(STORAGE_KEYS.GRAFICO2) ?? {},
+    );
   const [grafico2ConfigAplicada, setGrafico2ConfigAplicada] =
-    useState<Grafico2DesgasteFiltros>(() => leerConfig(STORAGE_KEYS.GRAFICO2));
+    useState<Grafico2DesgasteFiltros>(
+      () => leerConfig<Grafico2DesgasteFiltros>(STORAGE_KEYS.GRAFICO2) ?? {},
+    );
 
   const { data: grafico2Data, isLoading: grafico2Loading } = useApiQuery({
     queryKey: ['desgaste', 'grafico-2', grafico2ConfigAplicada],
@@ -92,131 +70,85 @@ export function DesgastePage() {
     enabled: Object.keys(grafico2ConfigAplicada).length > 0,
   });
 
-  useEffect(() => {
-    if (
-      grafico2Data?.configAplicada &&
-      Object.keys(grafico2ConfigAplicada).length === 0
-    ) {
-      setGrafico2Config(grafico2Data.configAplicada);
-      setGrafico2ConfigAplicada(grafico2Data.configAplicada);
-      sessionStorage.setItem(
-        STORAGE_KEYS.GRAFICO2,
-        JSON.stringify(grafico2Data.configAplicada),
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [grafico2Data]);
-
   const handleAplicarGrafico2 = () => {
     setGrafico2ConfigAplicada(grafico2Config);
-    sessionStorage.setItem(
-      STORAGE_KEYS.GRAFICO2,
-      JSON.stringify(grafico2Config),
-    );
+    guardarConfig(STORAGE_KEYS.GRAFICO2, grafico2Config);
   };
 
-  // ─── GRÁFICO 3 ────────────────────────────────────────────────────────
-  const [grafico3ConfigAplicada, setGrafico3ConfigAplicada] =
-    useState<Grafico3DesgasteFiltros>(() => leerConfig(STORAGE_KEYS.GRAFICO3));
+  // ── Gráfico 3 — Wizard G3 ─────────────────────────────────────────────────
+  // El estado del wizard vive aquí para sobrevivir al desmonte del Sheet.
+  // También se persiste en sessionStorage para sobrevivir a navegación.
+  const [wizardBloques, setWizardBloques] = useState<WizardG3Block[]>(
+    () => leerConfig<WizardG3Block[]>(STORAGE_KEYS.WIZARD_BLOQUES) ?? [crearBloquePorDefecto()],
+  );
+  const [wizardBloqueActivo, setWizardBloqueActivo] = useState(0);
+
+  // Persistir bloques cada vez que cambian
+  const handleSetWizardBloques: React.Dispatch<React.SetStateAction<WizardG3Block[]>> = (
+    action,
+  ) => {
+    setWizardBloques((prev) => {
+      const next = typeof action === 'function' ? action(prev) : action;
+      guardarConfig(STORAGE_KEYS.WIZARD_BLOQUES, next);
+      return next;
+    });
+  };
+
+  // Gráfico 3 — request aplicado
+  const [grafico3Request, setGrafico3Request] =
+    useState<Grafico3DesgasteRequest | null>(
+      () => leerConfig<Grafico3DesgasteRequest>(STORAGE_KEYS.GRAFICO3),
+    );
 
   const { data: grafico3Data, isLoading: grafico3Loading } = useApiQuery({
-    queryKey: ['desgaste', 'grafico-3', grafico3ConfigAplicada],
-    queryFn: () => desgasteApi.analytics.grafico3(grafico3ConfigAplicada),
-    enabled: Object.keys(grafico3ConfigAplicada).length > 0,
+    queryKey: ['desgaste', 'grafico-3', grafico3Request],
+    queryFn: () => desgasteApi.analytics.grafico3(grafico3Request!),
+    enabled: grafico3Request !== null,
   });
 
-  useEffect(() => {
-    if (
-      grafico3Data?.configAplicada &&
-      Object.keys(grafico3ConfigAplicada).length === 0
-    ) {
-      setGrafico3ConfigAplicada(grafico3Data.configAplicada);
-      sessionStorage.setItem(
-        STORAGE_KEYS.GRAFICO3,
-        JSON.stringify(grafico3Data.configAplicada),
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [grafico3Data]);
-
-  const handleAplicarGrafico3 = (config: Grafico3DesgasteFiltros) => {
-    setGrafico3ConfigAplicada(config);
-    sessionStorage.setItem(STORAGE_KEYS.GRAFICO3, JSON.stringify(config));
+  const handleAplicarGrafico3 = (request: Grafico3DesgasteRequest) => {
+    setGrafico3Request(request);
+    guardarConfig(STORAGE_KEYS.GRAFICO3, request);
   };
+
+  // ── Resumen G3 para el ConfigSummaryChips ────────────────────────────────
+  const g3Configs = grafico3Request?.configuraciones ?? [];
+  const g3ResumenItems = g3Configs.length === 0
+    ? [{ label: 'Estado', value: undefined }]
+    : [
+        {
+          label: 'Configs',
+          value: `${g3Configs.length} configuración${g3Configs.length === 1 ? '' : 'es'}`,
+        },
+        {
+          label: 'Escenarios',
+          value: (() => {
+            const ids = [...new Set(g3Configs.flatMap((c) => c.escenarioIds ?? []))];
+            return ids.length > 0 ? `${ids.length} escenario${ids.length === 1 ? '' : 's'}` : undefined;
+          })(),
+        },
+        {
+          label: 'Puntos',
+          value: (() => {
+            const puntos = [...new Set(g3Configs.flatMap((c) => c.puntosW ?? []))];
+            return puntos.length > 0 ? puntos.join(' · ') : undefined;
+          })(),
+        },
+      ];
 
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
         title="Análisis de Desgaste"
-        subtitle="Indicadores y proyecciones de desgaste por tramo"
+        subtitle="Indicadores y análisis de desgaste por tramo y escenario"
         breadcrumb={[{ label: 'Desgaste' }, { label: 'Análisis' }]}
       />
 
-      <KpisDesgaste data={kpisData || null} isLoading={kpisLoading} />
+      <KpisDesgaste data={kpisData ?? null} isLoading={kpisLoading} />
 
-      {/* GRÁFICO 1 — Wizard de 5 pasos */}
+      {/* ── Gráfico 2 — Crecimiento del tráfico ────────────────────────── */}
       <ChartCard
         eyebrow="Gráfico 1"
-        title="Evolución del desgaste real"
-        description="Tendencia histórica de mediciones por elemento."
-        loading={grafico1Loading && !grafico1Data}
-        minHeight={360}
-      >
-        <ConfigSheet
-          title="Asistente de configuración"
-          description="Define los parámetros del gráfico paso a paso."
-          triggerLabel="Configurar análisis"
-          size="2xl"
-          summary={
-            <ConfigSummaryChips
-              items={[
-                {
-                  label: 'Agrupación',
-                  value:
-                    TIPO_AGRUPACION_LABEL[
-                      grafico1ConfigAplicada.tipoAgrupacion as string
-                    ],
-                },
-                { label: 'Vía', value: grafico1ConfigAplicada.via },
-                {
-                  label: 'Puntos',
-                  value: grafico1ConfigAplicada.puntosW?.join(' · '),
-                },
-                {
-                  label: 'Elementos',
-                  value:
-                    grafico1ConfigAplicada.elementoCodigos &&
-                    grafico1ConfigAplicada.elementoCodigos.length > 0
-                      ? `${grafico1ConfigAplicada.elementoCodigos.length} sel.`
-                      : grafico1ConfigAplicada.elementoCodigos
-                        ? 'Todos'
-                        : undefined,
-                },
-              ]}
-            />
-          }
-        >
-          {(close) => (
-            <WizardDesgaste
-              onConfigurar={(c) => {
-                handleAplicarGrafico1(c);
-                close();
-              }}
-            />
-          )}
-        </ConfigSheet>
-
-        <div className="mt-4">
-          <Grafico1DesgasteEvolucionReal
-            data={grafico1Data || null}
-            isLoading={grafico1Loading}
-          />
-        </div>
-      </ChartCard>
-
-      {/* GRÁFICO 2 — Filtro simple */}
-      <ChartCard
-        eyebrow="Gráfico 2"
         title="Crecimiento del tráfico por escenario"
         description="Proyección de tráfico (MGB) bajo escenarios definidos."
         loading={grafico2Loading && !grafico2Data}
@@ -257,54 +189,35 @@ export function DesgastePage() {
 
         <div className="mt-4">
           <Grafico2DesgasteCrecimientoTrafico
-            data={grafico2Data || null}
+            data={grafico2Data ?? null}
             isLoading={grafico2Loading}
           />
         </div>
       </ChartCard>
 
-      {/* GRÁFICO 3 — Wizard de 6 pasos */}
+      {/* ── Gráfico 3 — Análisis de desgaste por escenario ─────────────── */}
       <ChartCard
-        eyebrow="Gráfico 3"
-        title="Proyección de desgaste por escenario"
-        description="Evolución futura estimada según parámetros del escenario."
+        eyebrow="Gráfico 2"
+        title="Evolución del desgaste por escenario MTB"
+        description="Desgaste medido (mm) en función del tráfico acumulado (Mt) según el escenario seleccionado."
         loading={grafico3Loading && !grafico3Data}
         minHeight={360}
       >
         <ConfigSheet
-          title="Asistente de proyección"
-          description="Configura los parámetros para proyectar el desgaste."
-          triggerLabel="Configurar proyección"
+          title="Configurar análisis de desgaste"
+          description="Compará la evolución del desgaste de distintos elementos, puntos de medición y escenarios de tráfico."
+          triggerLabel="Configurar análisis"
           size="2xl"
-          summary={
-            <ConfigSummaryChips
-              items={[
-                {
-                  label: 'Agrupación',
-                  value:
-                    TIPO_AGRUPACION_LABEL[
-                      grafico3ConfigAplicada.tipoAgrupacion as string
-                    ],
-                },
-                { label: 'Vía', value: grafico3ConfigAplicada.via },
-                {
-                  label: 'Puntos',
-                  value: grafico3ConfigAplicada.puntosW?.join(' · '),
-                },
-                {
-                  label: 'Escenario',
-                  value: grafico3ConfigAplicada.escenarioId
-                    ? `ID ${grafico3ConfigAplicada.escenarioId}`
-                    : undefined,
-                },
-              ]}
-            />
-          }
+          summary={<ConfigSummaryChips items={g3ResumenItems} />}
         >
           {(close) => (
             <WizardDesgasteG3
-              onConfigurar={(c) => {
-                handleAplicarGrafico3(c);
+              bloques={wizardBloques}
+              setBloques={handleSetWizardBloques}
+              bloqueActivo={wizardBloqueActivo}
+              setBloqueActivo={setWizardBloqueActivo}
+              onConfigurar={(request) => {
+                handleAplicarGrafico3(request);
                 close();
               }}
             />
@@ -312,10 +225,21 @@ export function DesgastePage() {
         </ConfigSheet>
 
         <div className="mt-4">
-          <Grafico3DesgasteProyeccion
-            data={grafico3Data || null}
-            isLoading={grafico3Loading}
-          />
+          {grafico3Request === null ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
+              <p className="text-sm font-medium">Sin configuración aplicada</p>
+              <p className="mt-1 text-xs">
+                Usá el botón{' '}
+                <span className="font-semibold">Configurar análisis</span> para
+                definir los parámetros del gráfico.
+              </p>
+            </div>
+          ) : (
+            <Grafico3DesgasteProyeccion
+              data={grafico3Data ?? null}
+              isLoading={grafico3Loading}
+            />
+          )}
         </div>
       </ChartCard>
     </div>

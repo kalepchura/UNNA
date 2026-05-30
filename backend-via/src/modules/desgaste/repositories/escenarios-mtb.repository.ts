@@ -12,7 +12,7 @@ export class EscenariosMtbRepository {
 
   /**
    * Lista escenarios. Por default solo activos.
-   * El admin puede pedir solo eliminados con `soloEliminados=true`.
+   * El admin puede pedir solo eliminados con `soloEliminados = true`.
    */
   async listar(filtros: {
     nombre?: string;
@@ -20,12 +20,7 @@ export class EscenariosMtbRepository {
     page?: number;
     limit?: number;
   }): Promise<[EscenarioMTB[], number]> {
-    const {
-      nombre,
-      soloEliminados = false,
-      page = 1,
-      limit = 20,
-    } = filtros;
+    const { nombre, soloEliminados = false, page = 1, limit = 20 } = filtros;
 
     const q = this.repo.createQueryBuilder('e');
     q.andWhere('e.eliminado = :el', { el: soloEliminados });
@@ -41,7 +36,10 @@ export class EscenariosMtbRepository {
     return q.getManyAndCount();
   }
 
-  async buscarPorId(id: number, incluirEliminados = false): Promise<EscenarioMTB | null> {
+  async buscarPorId(
+    id: number,
+    incluirEliminados = false,
+  ): Promise<EscenarioMTB | null> {
     const q = this.repo.createQueryBuilder('e').where('e.id = :id', { id });
     if (!incluirEliminados) q.andWhere('e.eliminado = false');
     return q.getOne();
@@ -55,6 +53,20 @@ export class EscenariosMtbRepository {
    */
   async buscarPorNombre(nombre: string): Promise<EscenarioMTB | null> {
     return this.repo.findOne({ where: { nombre } });
+  }
+
+  /**
+   * Busca el escenario marcado como REAL (esReal = true).
+   *
+   * Solo puede existir uno en toda la tabla.
+   * NO depende del nombre — el usuario puede haber renombrado
+   * el escenario REAL a cualquier otro nombre sin perder la protección.
+   *
+   * Usado por MapaDesgasteService para resolver el ID del escenario REAL
+   * sin hardcodear ni depender del nombre actual.
+   */
+  async buscarPorEsReal(): Promise<EscenarioMTB | null> {
+    return this.repo.findOne({ where: { esReal: true, eliminado: false } });
   }
 
   async crear(datos: Partial<EscenarioMTB>): Promise<EscenarioMTB> {

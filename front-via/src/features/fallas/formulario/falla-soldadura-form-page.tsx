@@ -326,7 +326,7 @@ export function FallaSoldaduraFormPage(props: FallaSoldaduraFormPageProps = {}) 
           <h1 className="text-2xl font-bold">
             {esEdicion
               ? `Editar Falla Soldadura #${fallaId}`
-              : 'Nueva Falla de Soldadura'}
+              : 'Nueva Falla de Soldadura Inox'}
           </h1>
           <Button asChild variant="outline">
             <Link to="/fallas/soldadura">Cancelar</Link>
